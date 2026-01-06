@@ -60,3 +60,106 @@ cd output
 ```
 
 Ensure the configuration file and database are accessible as expected by the application.
+
+## API Usage
+
+
+### Get Device List
+
+To retrieve the list of devices or a specific device, send a HTTP GET request to `/device`.
+
+**URL:** `http://<server_ip>:<httpPort>/device`
+
+**Method:** `GET`
+
+**Parameters:**
+
+- `deviceId` (optional): The ID of the specific device to retrieve. If omitted, all devices are returned.
+
+**Example using `curl`:**
+
+**Get all devices:**
+```bash
+curl -X GET http://127.0.0.1:26080/device
+```
+
+**Get a specific device:**
+```bash
+curl -X GET "http://127.0.0.1:26080/device?deviceId=rtsp_cam_01"
+```
+
+### Add RTSP Device
+
+To add an RTSP device, send a HTTP POST request to `/device` with the following JSON body:
+
+**URL:** `http://<server_ip>:<httpPort>/device`
+
+**Method:** `POST`
+
+**Body:**
+
+```json
+{
+    "deviceId": "unique_device_id_001",
+    "name": "My_RTSP_Camera",
+    "protocol": 2,
+    "url": "rtsp://admin:123456@192.168.1.100:554/ch1/main/av_stream"
+}
+```
+
+- `deviceId`: Unique identifier for the device (string).
+- `name`: Display name for the device (string).
+- `protocol`: `2` for RTSP device.
+- `url`: The full RTSP stream URL.
+
+**Example using `curl`:**
+
+```bash
+curl -X POST http://127.0.0.1:26080/device \
+  -H "Content-Type: application/json" \
+  -d '{
+        "deviceId": "rtsp_cam_01",
+        "name": "Door Camera",
+        "protocol": 2,
+        "url": "rtsp://192.168.1.50:554/live"
+      }'
+```
+
+### Get Device Preview URL
+
+To retrieve the live streaming URLs (RTSP, HTTP-TS, HTTP-FLV) for a device.
+
+**URL:** `http://<server_ip>:<httpPort>/device/url`
+
+**Method:** `GET` or `POST`
+
+**Parameters:**
+
+- `deviceId` (required): The ID of the device.
+- `netType` (optional): Network type preference.
+
+**Example using `curl`:**
+
+```bash
+curl -X POST http://127.0.0.1:26080/device/url \
+  -H "Content-Type: application/json" \
+  -d '{
+        "deviceId": "rtsp_cam_01"
+      }'
+```
+
+**Response:**
+
+```json
+{
+    "code": 0,
+    "msg": "success",
+    "result": {
+        "rtspUrl": "rtsp://192.168.1.100:554/live/rtsp_cam_01",
+        "httpTsUrl": "http://192.168.1.100:8080/live/rtsp_cam_01.ts",
+        "httpFlvUrl": "http://192.168.1.100:8080/live/rtsp_cam_01.flv"
+    }
+}
+```
+
+**Note:** You can use [mpegts.js](https://github.com/xqq/mpegts.js) to play HTTP-FLV/TS streams in the browser.
