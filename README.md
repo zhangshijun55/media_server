@@ -2,6 +2,18 @@
 
 A  media server implementation supporting GB/T 28181, RTSP, and HTTP streaming protocols.
 
+## Table of Contents
+- [Features](#features)
+- [Dependencies](#dependencies)
+- [Build Instructions](#build-instructions)
+- [Configuration](#configuration)
+- [Usage](#usage)
+- [API Usage](#api-usage)
+  - [Get Device List](#get-device-list)
+  - [Add RTSP Device](#add-rtsp-device)
+  - [Get Device Preview URL](#get-device-preview-url)
+  - [GB28181 Integration](#gb28181-integration)
+
 ## Features
 
 - **GB/T 28181 Support**: Implements GB/T 28181 standard for video surveillance networking systems (Server and Source).
