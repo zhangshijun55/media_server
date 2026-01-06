@@ -112,14 +112,12 @@ To add an RTSP device, send a HTTP POST request to `/device` with the following 
 
 ```json
 {
-    "deviceId": "unique_device_id_001",
     "name": "My_RTSP_Camera",
     "protocol": 2,
     "url": "rtsp://admin:123456@192.168.1.100:554/ch1/main/av_stream"
 }
 ```
 
-- `deviceId`: Unique identifier for the device (string).
 - `name`: Display name for the device (string).
 - `protocol`: `2` for RTSP device.
 - `url`: The full RTSP stream URL.
@@ -130,7 +128,6 @@ To add an RTSP device, send a HTTP POST request to `/device` with the following 
 curl -X POST http://127.0.0.1:26080/device \
   -H "Content-Type: application/json" \
   -d '{
-        "deviceId": "rtsp_cam_01",
         "name": "Door Camera",
         "protocol": 2,
         "url": "rtsp://192.168.1.50:554/live"
