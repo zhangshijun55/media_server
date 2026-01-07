@@ -17,7 +17,7 @@ A  media server implementation supporting GB/T 28181, RTSP, and HTTP streaming p
 
 ## Features
 
-- **GB/T 28181 Support**: Implements GB/T 28181 standard for video surveillance networking systems (Server and Source).
+- **GB/T 28181 Support**: Implements GB/T 28181 standard for video surveillance networking systems.
 - **RTSP Server**: Supports Real Time Streaming Protocol (RTSP) for media streaming.
 - **HTTP Server**: Built-in HTTP server for management and signaling.
 - **HTTP Streaming**: Support for media streaming over HTTP.

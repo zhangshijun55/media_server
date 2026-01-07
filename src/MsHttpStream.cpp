@@ -125,6 +125,10 @@ public:
                     m_streamID.c_str(), m_sinkID);
     }
 
+    // TODO: add proper time duration handling
+    // TODO: gb record play back, ts has aac timestamp gap issue
+    //       the audio pkt has dup timestamp sometimes, flv muxer can handle it, 
+    //       but ts muxer not, need further investigate
     void OnStreamInfo(AVStream *video, int videoIdx, AVStream *audio,
                       int audioIdx) override
     {

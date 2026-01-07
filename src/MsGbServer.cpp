@@ -386,7 +386,10 @@ void MsGbServer::HandleMessage(MsSipMsg &sipMsg, shared_ptr<MsSocket> sock, MsIn
 		}
 		else if (!strcmp("MediaStatus", strCmd))
 		{
+			// first send 200 OK, then send bye
+			SendSipMsg(rspMsg, sock, addr);
 			this->HandleMediaStatus(root, sipMsg);
+			return;
 		}
 		else if (!strcmp("PresetQuery", strCmd))
 		{

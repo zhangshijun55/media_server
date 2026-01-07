@@ -280,6 +280,8 @@ void MsDevMgr::LoadDevice()
         }
 
         sqlite3_finalize(pStmt);
+    } else {
+        printf("prepare sql failed:%s\n", sqlite3_errmsg(pSql));   
     }
 
     MsDbMgr::Instance()->RelSql();
