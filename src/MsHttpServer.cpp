@@ -473,9 +473,18 @@ void MsHttpServer::FileProcess(shared_ptr<MsEvent> evt, MsHttpMsg &msg, char *bo
     else
     {
         // get file list
+        // get fileId from uri param
+        string fileIdStr;
+        GetParam("fileId", fileIdStr, msg.m_uri);
+
         char *zErrMsg = 0;
         auto pSql = MsDbMgr::Instance()->GetSql();
         std::string sql = "SELECT file_id, name, size, codec, res, duration, frame_rate FROM t_file";
+        if (!fileIdStr.empty())
+        {
+            sql += " WHERE file_id = " + fileIdStr;
+        }
+        
         sqlite3_stmt *stmt;
         int rc = sqlite3_prepare_v2(pSql, sql.c_str(), -1, &stmt, NULL);
         json result = json::array();

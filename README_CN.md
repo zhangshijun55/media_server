@@ -15,6 +15,7 @@
   - [获取设备预览地址](#获取设备预览地址)
   - [PTZ 控制](#ptz-控制)
   - [查询预置位](#查询预置位)
+  - [文件回放](#文件回放)
   - [GB28181 集成](#gb28181-集成)
   - [GB28181 录像回放](#gb28181-录像回放)
 
@@ -269,6 +270,34 @@ curl -X POST http://127.0.0.1:26080/device/url \
 ```
 
 - `deviceId` (必填): 设备 ID。
+
+### 文件回放
+
+1. **上传文件**
+
+   使用 HTTP multipart/form-data 将视频文件上传到服务器。
+
+   **URL:** `http://<server_ip>:<httpPort>/file/upload`
+   **方法:** `POST`
+   **Content-Type:** `multipart/form-data`
+
+2. **获取文件列表**
+
+   获取已上传文件的列表或特定文件的信息。
+
+   **URL:** `http://<server_ip>:<httpPort>/file`
+   **方法:** `GET`
+   **参数:**
+   - `fileId` (可选): 特定文件的文件 ID。如果省略，将返回所有文件。
+
+3. **获取文件播放地址**
+
+   获取特定文件的播放地址。
+
+   **URL:** `http://<server_ip>:<httpPort>/file/url`
+   **方法:** `GET`
+   **参数:**
+   - `fileId` (必填): 文件 ID。
 
 ### GB28181 集成
 

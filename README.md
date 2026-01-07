@@ -15,6 +15,7 @@ A  media server implementation supporting GB/T 28181, RTSP, and HTTP streaming p
   - [Get Device Preview URL](#get-device-preview-url)
   - [PTZ Control](#ptz-control)
   - [Query Presets](#query-presets)
+  - [File Playback](#file-playback)
   - [GB28181 Integration](#gb28181-integration)
   - [GB28181 Record Playback](#gb28181-record-playback)
 
@@ -271,6 +272,34 @@ To query the presets of a device.
 ```
 
 - `deviceId` (required): The ID of the device.
+
+### File Playback
+
+1. **Upload File**
+
+   Upload a video file to the server using HTTP multipart/form-data.
+
+   **URL:** `http://<server_ip>:<httpPort>/file/upload`
+   **Method:** `POST`
+   **Content-Type:** `multipart/form-data`
+
+2. **Get File List**
+
+   Retrieve the list of uploaded files or information about a specific file.
+
+   **URL:** `http://<server_ip>:<httpPort>/file`
+   **Method:** `GET`
+   **Parameters:**
+   - `fileId` (optional): The ID of the specific file to retrieve. If omitted, all files are returned.
+
+3. **Get File Playback URL**
+
+   Get the playback URL for a specific file.
+
+   **URL:** `http://<server_ip>:<httpPort>/file/url`
+   **Method:** `GET`
+   **Parameters:**
+   - `fileId` (required): The ID of the file.
 
 ### GB28181 Integration
 
