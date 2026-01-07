@@ -146,6 +146,7 @@ curl -X POST http://127.0.0.1:26080/device \
 
 ```json
 {
+    "name": "My_ONVIF_Camera",
     "protocol": 4,
     "ipAddr": "192.168.1.100",
     "user": "admin",
@@ -153,6 +154,7 @@ curl -X POST http://127.0.0.1:26080/device \
 }
 ```
 
+- `name`: 设备的显示名称 (字符串)。
 - `protocol`: `4` 代表 ONVIF 设备。
 - `ipAddr`: ONVIF 设备的 IP 地址。
 - `user`: ONVIF 用户名。
@@ -164,6 +166,7 @@ curl -X POST http://127.0.0.1:26080/device \
 curl -X POST http://127.0.0.1:26080/device \
   -H "Content-Type: application/json" \
   -d '{
+        "name": "Office Camera",
         "protocol": 4,
         "ipAddr": "192.168.1.100",
         "user": "admin",

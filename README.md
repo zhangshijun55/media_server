@@ -148,6 +148,7 @@ To add an ONVIF device, send a HTTP POST request to `/device` with the following
 
 ```json
 {
+    "name": "My_ONVIF_Camera",
     "protocol": 4,
     "ipAddr": "192.168.1.100",
     "user": "admin",
@@ -155,6 +156,7 @@ To add an ONVIF device, send a HTTP POST request to `/device` with the following
 }
 ```
 
+- `name`: Display name for the device (string).
 - `protocol`: `4` for ONVIF device.
 - `ipAddr`: The IP address of the ONVIF device.
 - `user`: ONVIF username.
@@ -166,6 +168,7 @@ To add an ONVIF device, send a HTTP POST request to `/device` with the following
 curl -X POST http://127.0.0.1:26080/device \
   -H "Content-Type: application/json" \
   -d '{
+        "name": "Office Camera",
         "protocol": 4,
         "ipAddr": "192.168.1.100",
         "user": "admin",
