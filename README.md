@@ -11,6 +11,7 @@ A  media server implementation supporting GB/T 28181, RTSP, and HTTP streaming p
 - [API Usage](#api-usage)
   - [Get Device List](#get-device-list)
   - [Add RTSP Device](#add-rtsp-device)
+  - [Add ONVIF Device](#add-onvif-device)
   - [Get Device Preview URL](#get-device-preview-url)
   - [GB28181 Integration](#gb28181-integration)
   - [GB28181 Record Playback](#gb28181-record-playback)
@@ -132,6 +133,43 @@ curl -X POST http://127.0.0.1:26080/device \
         "name": "Door Camera",
         "protocol": 2,
         "url": "rtsp://192.168.1.50:554/live"
+      }'
+```
+
+### Add ONVIF Device
+
+To add an ONVIF device, send a HTTP POST request to `/device` with the following JSON body. The media server will probe the ONVIF device, get the RTSP URL and PTZ control URL, and add this device as an RTSP device.
+
+**URL:** `http://<server_ip>:<httpPort>/device`
+
+**Method:** `POST`
+
+**Body:**
+
+```json
+{
+    "protocol": 4,
+    "ipAddr": "192.168.1.100",
+    "user": "admin",
+    "pass": "123456"
+}
+```
+
+- `protocol`: `4` for ONVIF device.
+- `ipAddr`: The IP address of the ONVIF device.
+- `user`: ONVIF username.
+- `pass`: ONVIF password.
+
+**Example using `curl`:**
+
+```bash
+curl -X POST http://127.0.0.1:26080/device \
+  -H "Content-Type: application/json" \
+  -d '{
+        "protocol": 4,
+        "ipAddr": "192.168.1.100",
+        "user": "admin",
+        "pass": "123456"
       }'
 ```
 

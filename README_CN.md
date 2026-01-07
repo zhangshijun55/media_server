@@ -11,6 +11,7 @@
 - [API 使用](#api-使用)
   - [获取设备列表](#获取设备列表)
   - [添加 RTSP 设备](#添加-rtsp-设备)
+  - [添加 ONVIF 设备](#添加-onvif-设备)
   - [获取设备预览地址](#获取设备预览地址)
   - [GB28181 集成](#gb28181-集成)
   - [GB28181 录像回放](#gb28181-录像回放)
@@ -130,6 +131,43 @@ curl -X POST http://127.0.0.1:26080/device \
         "name": "Door Camera",
         "protocol": 2,
         "url": "rtsp://192.168.1.50:554/live"
+      }'
+```
+
+### 添加 ONVIF 设备
+
+要添加 ONVIF 设备，请发送 HTTP POST 请求到 `/device`，并在 Body 中包含以下 JSON 数据。媒体服务器将探测 ONVIF 设备，获取 RTSP URL 和 PTZ 控制 URL，并将此设备添加为 RTSP 设备。
+
+**URL:** `http://<server_ip>:<httpPort>/device`
+
+**方法:** `POST`
+
+**Body:**
+
+```json
+{
+    "protocol": 4,
+    "ipAddr": "192.168.1.100",
+    "user": "admin",
+    "pass": "123456"
+}
+```
+
+- `protocol`: `4` 代表 ONVIF 设备。
+- `ipAddr`: ONVIF 设备的 IP 地址。
+- `user`: ONVIF 用户名。
+- `pass`: ONVIF 密码。
+
+**使用 `curl` 的示例:**
+
+```bash
+curl -X POST http://127.0.0.1:26080/device \
+  -H "Content-Type: application/json" \
+  -d '{
+        "protocol": 4,
+        "ipAddr": "192.168.1.100",
+        "user": "admin",
+        "pass": "123456"
       }'
 ```
 
