@@ -33,10 +33,8 @@ int MsDbMgr::Init()
 
 	sql = "create table if not exists t_file (\
 		file_id    INTEGER PRIMARY KEY,\
-		node_id    INTEGER NOT NULL,\
 		name       TEXT NOT NULL,\
-		size       TEXT NOT NULL,\
-		md5        TEXT NOT NULL,\
+		size       INTEGER NOT NULL,\
 		codec      TEXT NOT NULL,\
 		res        TEXT NOT NULL,\
 		duration   REAL DEFAULT 0,\

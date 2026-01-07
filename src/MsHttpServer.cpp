@@ -8,6 +8,11 @@
 #include <fstream>
 #include <thread>
 
+extern "C"
+{
+#include "libavformat/avformat.h"
+}
+
 using httpHandle = void (MsHttpServer::*)(shared_ptr<MsEvent>, MsHttpMsg &,
                                           char *, int);
 
@@ -180,6 +185,399 @@ void MsHttpServer::QueryPreset(shared_ptr<MsEvent> evt, MsHttpMsg &msg,
         rsp["msg"] = "json error";
         SendHttpRsp(evt->GetSocket(), rsp.dump());
     }
+}
+
+void MsHttpServer::FileUpload(shared_ptr<MsEvent> evt, MsHttpMsg &msg, char *body, int len)
+{
+    if (msg.m_method != "POST")
+    {
+        json rsp;
+        rsp["code"] = 1;
+        rsp["msg"] = "method not allowed";
+        SendHttpRspEx(evt->GetSocket(), rsp.dump());
+        return;
+    }
+
+    std::string contentType = msg.m_contentType.m_value;
+    std::string boundary_prefix = "boundary=";
+    size_t b_pos = contentType.find(boundary_prefix);
+    if (b_pos == std::string::npos)
+    {
+        json rsp;
+        rsp["code"] = 1;
+        rsp["msg"] = "boundary not found";
+        SendHttpRspEx(evt->GetSocket(), rsp.dump());
+        return;
+    }
+
+    std::string boundary = "--" + contentType.substr(b_pos + boundary_prefix.length());
+
+    auto find_mem = [](const char *haystack, int hlen, const char *needle, int nlen) -> int
+    {
+        if (hlen < nlen)
+            return -1;
+        for (int i = 0; i <= hlen - nlen; ++i)
+        {
+            if (memcmp(haystack + i, needle, nlen) == 0)
+                return i;
+        }
+        return -1;
+    };
+
+    int start_pos = find_mem(body, len, boundary.c_str(), boundary.length());
+    if (start_pos == -1)
+    {
+        json rsp;
+        rsp["code"] = 1;
+        rsp["msg"] = "invalid body";
+        SendHttpRspEx(evt->GetSocket(), rsp.dump());
+        return;
+    }
+
+    int curr_pos = start_pos;
+    std::vector<std::string> filenames;
+
+    while (true)
+    {
+        curr_pos += boundary.length();
+        if (curr_pos + 2 > len)
+            break;
+
+        if (memcmp(body + curr_pos, "--", 2) == 0)
+            break;
+        if (memcmp(body + curr_pos, "\r\n", 2) != 0)
+            break;
+
+        curr_pos += 2; // skip \r\n
+
+        int header_end = find_mem(body + curr_pos, len - curr_pos, "\r\n\r\n", 4);
+        if (header_end == -1)
+            break;
+        header_end += curr_pos;
+
+        std::string headers(body + curr_pos, header_end - curr_pos);
+        int content_start = header_end + 4;
+
+        int next_boundary = find_mem(body + content_start, len - content_start, boundary.c_str(), boundary.length());
+        if (next_boundary == -1)
+            break;
+        next_boundary += content_start;
+
+        int content_end = next_boundary - 2; // remove preceding \r\n
+        int content_len = content_end - content_start;
+
+        std::string filename;
+        std::string disp_prefix = "Content-Disposition:";
+        size_t disp_pos = headers.find(disp_prefix);
+        if (disp_pos != std::string::npos)
+        {
+            size_t fn_pos = headers.find("filename=\"", disp_pos);
+            if (fn_pos != std::string::npos)
+            {
+                fn_pos += 10;
+                size_t fn_end = headers.find("\"", fn_pos);
+                if (fn_end != std::string::npos)
+                {
+                    filename = headers.substr(fn_pos, fn_end - fn_pos);
+                }
+            }
+        }
+
+        if (!filename.empty() && content_len > 0)
+        {
+            std::ofstream ofs("files/" + filename, std::ios::binary);
+            if (ofs.is_open())
+            {
+                ofs.write(body + content_start, content_len);
+                ofs.close();
+                filenames.push_back(filename);
+            }
+        }
+
+        curr_pos = next_boundary;
+    }
+
+    if (filenames.size() > 1)
+    {
+        // too many, can only handle one, return error and delete files
+        for (const auto &fname : filenames)
+        {
+            std::remove(("files/" + fname).c_str());
+        }
+        json rsp;
+        rsp["code"] = 1;
+        rsp["msg"] = "only one file allowed";
+        SendHttpRspEx(evt->GetSocket(), rsp.dump());
+        return;
+    }
+
+    AVFormatContext *fmt_ctx = nullptr;
+    std::string file_path = "files/" + filenames[0];
+    int ret = avformat_open_input(&fmt_ctx, file_path.c_str(), nullptr, nullptr);
+    if (ret < 0)
+    {
+        std::remove(file_path.c_str());
+        json rsp;
+        rsp["code"] = 1;
+        rsp["msg"] = "open file failed";
+        SendHttpRspEx(evt->GetSocket(), rsp.dump());
+        return;
+    }
+
+    if (avformat_find_stream_info(fmt_ctx, nullptr) < 0)
+    {
+        avformat_close_input(&fmt_ctx);
+        std::remove(file_path.c_str());
+        json rsp;
+        rsp["code"] = 1;
+        rsp["msg"] = "find stream info failed";
+        SendHttpRspEx(evt->GetSocket(), rsp.dump());
+        return;
+    }
+
+    string codec;
+    string resolution;
+    double frame_rate = 0.0;
+
+    for (unsigned int i = 0; i < fmt_ctx->nb_streams; i++)
+    {
+        if (fmt_ctx->streams[i]->codecpar->codec_id == AV_CODEC_ID_H264 ||
+            fmt_ctx->streams[i]->codecpar->codec_id == AV_CODEC_ID_HEVC)
+        {
+            codec = (fmt_ctx->streams[i]->codecpar->codec_id == AV_CODEC_ID_H264) ? "h264" : "h265";
+            if (fmt_ctx->streams[i]->avg_frame_rate.den != 0)
+            {
+                frame_rate = av_q2d(fmt_ctx->streams[i]->avg_frame_rate);
+            }
+            resolution = std::to_string(fmt_ctx->streams[i]->codecpar->width) + "x" +
+                         std::to_string(fmt_ctx->streams[i]->codecpar->height);
+            break;
+        }
+    }
+
+    if (fmt_ctx->duration <= 0 || frame_rate <= 0.0)
+    {
+        avformat_close_input(&fmt_ctx);
+        std::remove(file_path.c_str());
+        json rsp;
+        rsp["code"] = 1;
+        rsp["msg"] = "invalid format";
+        SendHttpRspEx(evt->GetSocket(), rsp.dump());
+        return;
+    }
+
+    double duration_sec = fmt_ctx->duration * av_q2d(AV_TIME_BASE_Q);
+    avformat_close_input(&fmt_ctx);
+
+    std::ifstream in(file_path, std::ios::ate | std::ios::binary);
+    long long fsize = 0;
+    if (in.is_open())
+    {
+        fsize = in.tellg();
+        in.close();
+    }
+
+    char *zErrMsg = 0;
+    auto pSql = MsDbMgr::Instance()->GetSql();
+    std::string sql = "INSERT INTO t_file (name, size, codec, res, duration, frame_rate) VALUES ('" +
+                      filenames[0] + "', " + std::to_string(fsize) + ", '" + codec + "', '" + resolution + "', " +
+                      std::to_string(duration_sec) + ", " + std::to_string(frame_rate) + ")";
+
+    sqlite3_exec(pSql, sql.c_str(), NULL, 0, &zErrMsg);
+    if (zErrMsg)
+    {
+        MS_LOG_ERROR("insert t_file error: %s", zErrMsg);
+        json rsp;
+        rsp["code"] = 1;
+        rsp["msg"] = "database error";
+        SendHttpRspEx(evt->GetSocket(), rsp.dump());
+
+        sqlite3_free(zErrMsg);
+        MsDbMgr::Instance()->RelSql();
+        return;
+    }
+
+    // get last insert id
+    int64_t file_id = sqlite3_last_insert_rowid(pSql);
+    MsDbMgr::Instance()->RelSql();
+
+    json r, rsp;
+    r["fileId"] = file_id;
+    r["fileName"] = filenames[0];
+    r["size"] = fsize;
+    r["codec"] = codec;
+    r["resolution"] = resolution;
+    r["duration"] = duration_sec;
+    r["frameRate"] = frame_rate;
+    rsp["code"] = 0;
+    rsp["msg"] = "success";
+    rsp["result"] = r;
+    SendHttpRspEx(evt->GetSocket(), rsp.dump());
+}
+
+void MsHttpServer::FileProcess(shared_ptr<MsEvent> evt, MsHttpMsg &msg, char *body, int len)
+{
+    if (msg.m_method == "DELETE")
+    {
+        try
+        {
+            json ji = json::parse(body);
+            int64_t fileId = ji["fileId"].get<int64_t>();
+
+            char *zErrMsg = 0;
+            auto pSql = MsDbMgr::Instance()->GetSql();
+            // select file name
+            std::string sql = "SELECT name FROM t_file WHERE file_id = " + std::to_string(fileId);
+            sqlite3_stmt *stmt;
+            int rc = sqlite3_prepare_v2(pSql, sql.c_str(), -1, &stmt, NULL);
+            if (rc == SQLITE_OK)
+            {
+                rc = sqlite3_step(stmt);
+                if (rc == SQLITE_ROW)
+                {
+                    std::string filename = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 0)); // delete file from disk
+                    std::string filepath = "files/" + filename;
+                    if (std::remove(filepath.c_str()) != 0)
+                    {
+                        MS_LOG_WARN("delete file:%s error", filepath.c_str());
+                    }
+                }
+                sqlite3_finalize(stmt);
+            }
+
+            // delete record from db
+            sql = "DELETE FROM t_file WHERE file_id = " + std::to_string(fileId);
+            sqlite3_exec(pSql, sql.c_str(), NULL, 0, &zErrMsg);
+            if (zErrMsg)
+            {
+                MS_LOG_ERROR("delete t_file error: %s", zErrMsg);
+                sqlite3_free(zErrMsg);
+            }
+
+            MsDbMgr::Instance()->RelSql();
+
+            json rsp;
+            rsp["code"] = 0;
+            rsp["msg"] = "success";
+            SendHttpRsp(evt->GetSocket(), rsp.dump());
+        }
+        catch (json::exception &e)
+        {
+            MS_LOG_WARN("json err:%s", e.what());
+            json rsp;
+            rsp["code"] = 1;
+            rsp["msg"] = "json error";
+            SendHttpRsp(evt->GetSocket(), rsp.dump());
+        }
+    }
+    else
+    {
+        // get file list
+        char *zErrMsg = 0;
+        auto pSql = MsDbMgr::Instance()->GetSql();
+        std::string sql = "SELECT file_id, name, size, codec, res, duration, frame_rate FROM t_file";
+        sqlite3_stmt *stmt;
+        int rc = sqlite3_prepare_v2(pSql, sql.c_str(), -1, &stmt, NULL);
+        json result = json::array();
+        if (rc == SQLITE_OK)
+        {
+            while ((rc = sqlite3_step(stmt)) == SQLITE_ROW)
+            {
+                json r;
+                r["fileId"] = sqlite3_column_int64(stmt, 0);
+                r["fileName"] = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 1));
+                r["size"] = sqlite3_column_int64(stmt, 2);
+                r["codec"] = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 3));
+                r["resolution"] = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 4));
+                r["duration"] = sqlite3_column_double(stmt, 5);
+                r["frameRate"] = sqlite3_column_double(stmt, 6);
+                result.push_back(r);
+            }
+            sqlite3_finalize(stmt);
+        }
+        MsDbMgr::Instance()->RelSql();
+
+        json rsp;
+        rsp["code"] = 0;
+        rsp["msg"] = "success";
+        rsp["result"] = result;
+        SendHttpRsp(evt->GetSocket(), rsp.dump());
+    }
+}
+
+void MsHttpServer::FileUrl(shared_ptr<MsEvent> evt, MsHttpMsg &msg, char *body, int len)
+{
+    // get file id from uri param
+    json rsp, r;
+    string fileIdStr, netTypeStr;
+    int nNetType = 0; // default use ip
+    GetParam("fileId", fileIdStr, msg.m_uri);
+    GetParam("netType", netTypeStr, msg.m_uri);
+
+    if (!netTypeStr.empty())
+    {
+        nNetType = std::stoi(netTypeStr);
+    }
+
+    if (fileIdStr.empty())
+    {
+        rsp["code"] = 1;
+        rsp["msg"] = "fileId missing";
+        SendHttpRsp(evt->GetSocket(), rsp.dump());
+        return;
+    }
+
+    int64_t fileId = std::stoll(fileIdStr);
+    // query file name from db
+    char *zErrMsg = 0;
+    auto pSql = MsDbMgr::Instance()->GetSql();
+    std::string sql = "SELECT name FROM t_file WHERE file_id = " + std::to_string(fileId);
+    sqlite3_stmt *stmt;
+    int rc = sqlite3_prepare_v2(pSql, sql.c_str(), -1, &stmt, NULL);
+    std::string filename;
+    if (rc == SQLITE_OK)
+    {
+        rc = sqlite3_step(stmt);
+        if (rc == SQLITE_ROW)
+        {
+            filename = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 0));
+        }
+        sqlite3_finalize(stmt);
+    }
+    MsDbMgr::Instance()->RelSql();
+    if (filename.empty())
+    {
+        rsp["code"] = 1;
+        rsp["msg"] = "file not found";
+        SendHttpRsp(evt->GetSocket(), rsp.dump());
+        return;
+    }
+    // construct file url
+    auto mn = m_mediaNode.begin()->second;
+    string ip = mn->nodeIp;
+    if (nNetType == 1 && mn->httpMediaIP.size())
+    {
+        ip = mn->httpMediaIP;
+    }
+
+    char bb[512];
+    string rid = GenRandStr(16);
+    sprintf(bb, "rtsp://%s:%d/vod/%s/%s", ip.c_str(), mn->rtspPort, rid.c_str(),
+            filename.c_str());
+    r["rtspUrl"] = bb;
+
+    sprintf(bb, "http://%s:%d/vod/%s/ts/%s", ip.c_str(), mn->httpStreamPort, rid.c_str(),
+            filename.c_str());
+    r["httpTsUrl"] = bb;
+
+    sprintf(bb, "http://%s:%d/vod/%s/flv/%s", ip.c_str(), mn->httpStreamPort, rid.c_str(),
+            filename.c_str());
+    r["httpFlvUrl"] = bb;
+
+    rsp["code"] = 0;
+    rsp["msg"] = "success";
+    rsp["result"] = r;
+    SendHttpRsp(evt->GetSocket(), rsp.dump());
 }
 
 void MsHttpServer::QueryRecord(shared_ptr<MsEvent> evt, MsHttpMsg &msg,
@@ -563,6 +961,10 @@ void MsHttpServer::HandleHttpReq(shared_ptr<MsEvent> evt, MsHttpMsg &msg,
         {"/gb/record", &MsHttpServer::QueryRecord},
         {"/gb/record/url", &MsHttpServer::GetPlaybackUrl},
 
+        {"/file/upload", &MsHttpServer::FileUpload},
+        {"/file/url", &MsHttpServer::FileUrl},
+        {"/file", &MsHttpServer::FileProcess},
+
         {"/sys/node", &MsHttpServer::GetMediaNode},
         {"/sys/config", &MsHttpServer::SetSysConfig},
         {"/sys/netmap", &MsHttpServer::NetMapConfig},
@@ -601,11 +1003,7 @@ void MsHttpServer::HandleHttpReq(shared_ptr<MsEvent> evt, MsHttpMsg &msg,
 
 void MsHttpServer::DeviceProcess(shared_ptr<MsEvent> evt, MsHttpMsg &msg, char *body, int len)
 {
-    if (msg.m_method == "GET")
-    {
-        this->GetDevList(evt, msg, body, len);
-    }
-    else if (msg.m_method == "POST")
+    if (msg.m_method == "POST")
     {
         this->AddDevice(evt, msg, body, len);
     }
@@ -615,13 +1013,7 @@ void MsHttpServer::DeviceProcess(shared_ptr<MsEvent> evt, MsHttpMsg &msg, char *
     }
     else
     {
-        MS_LOG_WARN("unsupported method:%s", msg.m_method.c_str());
-        MsHttpMsg rsp;
-        rsp.m_version = msg.m_version;
-        rsp.m_status = "405";
-        rsp.m_reason = "Method Not Allowed";
-        rsp.m_connection.SetValue("close");
-        SendHttpRsp(evt->GetSocket(), rsp);
+        this->GetDevList(evt, msg, body, len);
     }
 }
 

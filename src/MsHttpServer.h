@@ -39,6 +39,9 @@ private:
     void PtzControl(shared_ptr<MsEvent> evt, MsHttpMsg &msg, char *body, int len);
     void NetMapConfig(shared_ptr<MsEvent> evt, MsHttpMsg &msg, char *body, int len);
     void QueryPreset(shared_ptr<MsEvent> evt, MsHttpMsg &msg, char *body, int len);
+    void FileUpload(shared_ptr<MsEvent> evt, MsHttpMsg &msg, char *body, int len);
+    void FileProcess(shared_ptr<MsEvent> evt, MsHttpMsg &msg, char *body, int len);
+    void FileUrl(shared_ptr<MsEvent> evt, MsHttpMsg &msg, char *body, int len);
 
 private:
     map<int, shared_ptr<MsEvent>> m_evts;

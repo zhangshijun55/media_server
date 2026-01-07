@@ -5,7 +5,6 @@
 #include "MsSourceFactory.h"
 #include "nlohmann/json.hpp"
 #include <thread>
-#include <fstream>
 #include "MsConfig.h"
 
 using json = nlohmann::json;
@@ -128,8 +127,9 @@ public:
 
     // TODO: add proper time duration handling
     // TODO: gb record play back, ts has aac timestamp gap issue
-    //       the audio pkt has dup timestamp sometimes, flv muxer can handle it, 
+    //       the audio pkt has dup timestamp sometimes, flv muxer can handle it,
     //       but ts muxer not, need further investigate
+    // TODO: mpegts.js can't play http ts BigBuckBunny correctly, need further investigate
     void OnStreamInfo(AVStream *video, int videoIdx, AVStream *audio,
                       int audioIdx) override
     {
@@ -432,7 +432,7 @@ void MsHttpStream::HandleHttpReq(shared_ptr<MsEvent> evt, MsHttpMsg &msg,
     MS_LOG_DEBUG("http stream req uri:%s body:%s", msg.m_uri.c_str(), body);
 
     std::vector<std::string> s = SplitString(msg.m_uri, "/");
-    if (s[1] != "upload" && s.size() < 3)
+    if (s.size() < 3)
     {
         MS_LOG_WARN("invalid uri:%s", msg.m_uri.c_str());
         json rsp;
@@ -532,7 +532,7 @@ void MsHttpStream::HandleHttpReq(shared_ptr<MsEvent> evt, MsHttpMsg &msg,
 
         this->DelEvent(evt);
     }
-    else if(s[1] == "gbvod")
+    else if (s[1] == "gbvod")
     {
         if (s.size() < 4)
         {
@@ -558,7 +558,7 @@ void MsHttpStream::HandleHttpReq(shared_ptr<MsEvent> evt, MsHttpMsg &msg,
             SendHttpRsp(evt->GetSocket(), rsp.dump());
             return;
         }
-        
+
         std::shared_ptr<MsMediaSource> source =
             MsResManager::GetInstance().GetMediaSource(streamID);
         if (source)
@@ -589,121 +589,6 @@ void MsHttpStream::HandleHttpReq(shared_ptr<MsEvent> evt, MsHttpMsg &msg,
         source->Work();
 
         this->DelEvent(evt);
-    }
-    else if(s[1] == "upload")
-    {
-        if (msg.m_method != "POST")
-        {
-            json rsp;
-            rsp["code"] = 1;
-            rsp["msg"] = "method not allowed";
-            SendHttpRspEx(evt->GetSocket(), rsp.dump());
-            return;
-        }
-
-        std::string contentType = msg.m_contentType.m_value;
-        std::string boundary_prefix = "boundary=";
-        size_t b_pos = contentType.find(boundary_prefix);
-        if (b_pos == std::string::npos)
-        {
-            json rsp;
-            rsp["code"] = 1;
-            rsp["msg"] = "boundary not found";
-            SendHttpRspEx(evt->GetSocket(), rsp.dump());
-            return;
-        }
-
-        std::string boundary = "--" + contentType.substr(b_pos + boundary_prefix.length());
-
-        auto find_mem = [](const char *haystack, int hlen, const char *needle, int nlen) -> int {
-            if (hlen < nlen)
-                return -1;
-            for (int i = 0; i <= hlen - nlen; ++i)
-            {
-                if (memcmp(haystack + i, needle, nlen) == 0)
-                    return i;
-            }
-            return -1;
-        };
-
-        int start_pos = find_mem(body, len, boundary.c_str(), boundary.length());
-        if (start_pos == -1)
-        {
-            json rsp;
-            rsp["code"] = 1;
-            rsp["msg"] = "invalid body";
-            SendHttpRspEx(evt->GetSocket(), rsp.dump());
-            return;
-        }
-
-        int curr_pos = start_pos;
-        int files_count = 0;
-
-        while (true)
-        {
-            curr_pos += boundary.length();
-            if (curr_pos + 2 > len)
-                break;
-
-            if (memcmp(body + curr_pos, "--", 2) == 0)
-                break;
-            if (memcmp(body + curr_pos, "\r\n", 2) != 0)
-                break;
-
-            curr_pos += 2; // skip \r\n
-
-            int header_end = find_mem(body + curr_pos, len - curr_pos, "\r\n\r\n", 4);
-            if (header_end == -1)
-                break;
-            header_end += curr_pos;
-
-            std::string headers(body + curr_pos, header_end - curr_pos);
-            int content_start = header_end + 4;
-
-            int next_boundary = find_mem(body + content_start, len - content_start, boundary.c_str(), boundary.length());
-            if (next_boundary == -1)
-                break;
-            next_boundary += content_start;
-
-            int content_end = next_boundary - 2; // remove preceding \r\n
-            int content_len = content_end - content_start;
-
-            std::string filename;
-            std::string disp_prefix = "Content-Disposition:";
-            size_t disp_pos = headers.find(disp_prefix);
-            if (disp_pos != std::string::npos)
-            {
-                size_t fn_pos = headers.find("filename=\"", disp_pos);
-                if (fn_pos != std::string::npos)
-                {
-                    fn_pos += 10;
-                    size_t fn_end = headers.find("\"", fn_pos);
-                    if (fn_end != std::string::npos)
-                    {
-                        filename = headers.substr(fn_pos, fn_end - fn_pos);
-                    }
-                }
-            }
-
-            if (!filename.empty() && content_len > 0)
-            {
-                std::ofstream ofs("files/" + filename, std::ios::binary);
-                if (ofs.is_open())
-                {
-                    ofs.write(body + content_start, content_len);
-                    ofs.close();
-                    files_count++;
-                }
-            }
-
-            curr_pos = next_boundary;
-        }
-
-        json rsp;
-        rsp["code"] = 0;
-        rsp["msg"] = "success";
-        rsp["count"] = files_count;
-        SendHttpRspEx(evt->GetSocket(), rsp.dump());
     }
     else
     {
