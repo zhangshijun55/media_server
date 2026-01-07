@@ -352,7 +352,7 @@ void MsHttpServer::AddDevice(shared_ptr<MsEvent> evt, MsHttpMsg &msg,
             rsp["msg"] = ret ? "add device failed" : "success";
 
             if (ret == 0 && dev->m_user.size() && dev->m_pass.size() &&
-                dev->m_ipaddr.size() && dev->m_port > 0)
+                dev->m_ipaddr.size())
             {
                 MsMsg xm;
                 xm.m_msgID = MS_ONVIF_PROBE;

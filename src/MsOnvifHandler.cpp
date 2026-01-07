@@ -9,13 +9,9 @@
 #include <string.h>
 
 MsOnvifHandler::MsOnvifHandler(shared_ptr<MsReactor> r, shared_ptr<MsGbDevice> dev, int sid)
-	: m_reactor(r)
-	, m_nrecv(0)
-	, m_stage(STAGE_S1)
-	, m_dev(dev)
-	, m_sid(sid)
+	: m_reactor(r), m_nrecv(0), m_stage(STAGE_S1), m_dev(dev), m_sid(sid)
 {
-	m_buf = (char*)malloc(DEF_BUF_SIZE);
+	m_buf = (char *)malloc(DEF_BUF_SIZE);
 }
 
 MsOnvifHandler::~MsOnvifHandler()
@@ -28,7 +24,7 @@ void MsOnvifHandler::HandleRead(shared_ptr<MsEvent> evt)
 {
 	MS_LOG_INFO("handle read");
 
-	MsSocket* sock = evt->GetSocket();
+	MsSocket *sock = evt->GetSocket();
 	int ret = sock->Recv(m_buf + m_nrecv, DEF_BUF_SIZE - m_nrecv);
 	if (ret < 1)
 	{
@@ -42,8 +38,8 @@ void MsOnvifHandler::HandleRead(shared_ptr<MsEvent> evt)
 
 	MS_LOG_INFO("%s", m_buf);
 
-	char* p = strstr(m_buf, "Envelope>");
-	if (!p) //not full msg recved
+	char *p = strstr(m_buf, "Envelope>");
+	if (!p) // not full msg recved
 	{
 		return;
 	}
@@ -77,7 +73,7 @@ void MsOnvifHandler::HandleClose(shared_ptr<MsEvent> evt)
 }
 
 void MsOnvifHandler::OnvifPtzControl(string user, string passwd,
-	string url, string profile, string presetID, int cmd, int tout)
+									 string url, string profile, string presetID, int cmd, int tout)
 {
 	if (cmd == -1 && tout > 0)
 	{
@@ -106,7 +102,7 @@ void MsOnvifHandler::OnvifPtzControl(string user, string passwd,
 	string nonce, created, digest;
 	gen_digest(passwd, created, nonce, digest);
 
-	char* buf = new char[DEF_BUF_SIZE];
+	char *buf = new char[DEF_BUF_SIZE];
 
 	if ((cmd >= 1 && cmd <= 6) || (cmd >= 11 && cmd <= 14))
 	{
@@ -165,28 +161,28 @@ void MsOnvifHandler::OnvifPtzControl(string user, string passwd,
 		}
 
 		ret = sprintf(buf, "<?xml version=\"1.0\" encoding=\"utf-8\"?><s:Envelope xmlns:s=\"http://www.w3.org/2003/05/soap-envelope\"><s:Header><wsse:Security xmlns:wsse=\"http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd\" xmlns:wsu=\"http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd\"><wsse:UsernameToken><wsse:Username>%s</wsse:Username><wsse:Password Type=\"http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-username-token-profile-1.0#PasswordDigest\">%s</wsse:Password><wsse:Nonce>%s</wsse:Nonce><wsu:Created>%s</wsu:Created></wsse:UsernameToken></wsse:Security></s:Header><s:Body xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:xsd=\"http://www.w3.org/2001/XMLSchema\"><ContinuousMove xmlns=\"http://www.onvif.org/ver20/ptz/wsdl\"><ProfileToken>%s</ProfileToken><Velocity><PanTilt x=\"%s\" y=\"%s\" space=\"http://www.onvif.org/ver10/tptz/PanTiltSpaces/VelocityGenericSpace\" xmlns=\"http://www.onvif.org/ver10/schema\"/><Zoom x=\"%s\" space=\"http://www.onvif.org/ver10/tptz/ZoomSpaces/VelocityGenericSpace\" xmlns=\"http://www.onvif.org/ver10/schema\"/></Velocity></ContinuousMove></s:Body></s:Envelope>",
-			user.c_str(), digest.c_str(), nonce.c_str(), created.c_str(), 
-			profile.c_str(), x.c_str(), y.c_str(), z.c_str());
+					  user.c_str(), digest.c_str(), nonce.c_str(), created.c_str(),
+					  profile.c_str(), x.c_str(), y.c_str(), z.c_str());
 	}
 	else if (cmd == 7)
 	{
 		ret = sprintf(buf, "<?xml version=\"1.0\" encoding=\"utf-8\"?><s:Envelope xmlns:s=\"http://www.w3.org/2003/05/soap-envelope\"><s:Header><wsse:Security xmlns:wsse=\"http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd\" xmlns:wsu=\"http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd\"><wsse:UsernameToken><wsse:Username>%s</wsse:Username><wsse:Password Type=\"http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-username-token-profile-1.0#PasswordDigest\">%s</wsse:Password><wsse:Nonce>%s</wsse:Nonce><wsu:Created>%s</wsu:Created></wsse:UsernameToken></wsse:Security></s:Header><s:Body xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:xsd=\"http://www.w3.org/2001/XMLSchema\"><GotoPreset xmlns=\"http://www.onvif.org/ver20/ptz/wsdl\"><ProfileToken>%s</ProfileToken><PresetToken>%s</PresetToken></GotoPreset></s:Body></s:Envelope>",
-			user.c_str(), digest.c_str(), nonce.c_str(), created.c_str(), profile.c_str(), presetID.c_str());
+					  user.c_str(), digest.c_str(), nonce.c_str(), created.c_str(), profile.c_str(), presetID.c_str());
 	}
 	else if (cmd == 8)
 	{
 		ret = sprintf(buf, "<?xml version=\"1.0\" encoding=\"utf-8\"?><s:Envelope xmlns:s=\"http://www.w3.org/2003/05/soap-envelope\"><s:Header><wsse:Security xmlns:wsse=\"http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd\" xmlns:wsu=\"http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd\"><wsse:UsernameToken><wsse:Username>%s</wsse:Username><wsse:Password Type=\"http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-username-token-profile-1.0#PasswordDigest\">%s</wsse:Password><wsse:Nonce>%s</wsse:Nonce><wsu:Created>%s</wsu:Created></wsse:UsernameToken></wsse:Security></s:Header><s:Body xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:xsd=\"http://www.w3.org/2001/XMLSchema\"><SetPreset xmlns=\"http://www.onvif.org/ver20/ptz/wsdl\"><ProfileToken>%s</ProfileToken><PresetToken>%s</PresetToken></SetPreset></s:Body></s:Envelope>",
-			user.c_str(), digest.c_str(), nonce.c_str(), created.c_str(), profile.c_str(), presetID.c_str());
+					  user.c_str(), digest.c_str(), nonce.c_str(), created.c_str(), profile.c_str(), presetID.c_str());
 	}
 	else if (cmd == 9)
 	{
 		ret = sprintf(buf, "<?xml version=\"1.0\" encoding=\"utf-8\"?><s:Envelope xmlns:s=\"http://www.w3.org/2003/05/soap-envelope\"><s:Header><wsse:Security xmlns:wsse=\"http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd\" xmlns:wsu=\"http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd\"><wsse:UsernameToken><wsse:Username>%s</wsse:Username><wsse:Password Type=\"http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-username-token-profile-1.0#PasswordDigest\">%s</wsse:Password><wsse:Nonce>%s</wsse:Nonce><wsu:Created>%s</wsu:Created></wsse:UsernameToken></wsse:Security></s:Header><s:Body xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:xsd=\"http://www.w3.org/2001/XMLSchema\"><RemovePreset xmlns=\"http://www.onvif.org/ver20/ptz/wsdl\"><ProfileToken>%s</ProfileToken><PresetToken>%s</PresetToken></RemovePreset></s:Body></s:Envelope>",
-			user.c_str(), digest.c_str(), nonce.c_str(), created.c_str(), profile.c_str(), presetID.c_str());
+					  user.c_str(), digest.c_str(), nonce.c_str(), created.c_str(), profile.c_str(), presetID.c_str());
 	}
 	else if (cmd == -1)
 	{
 		ret = sprintf(buf, "<?xml version=\"1.0\" encoding=\"utf-8\"?><s:Envelope xmlns:s=\"http://www.w3.org/2003/05/soap-envelope\"><s:Header><wsse:Security xmlns:wsse=\"http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd\" xmlns:wsu=\"http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd\"><wsse:UsernameToken><wsse:Username>%s</wsse:Username><wsse:Password Type=\"http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-username-token-profile-1.0#PasswordDigest\">%s</wsse:Password><wsse:Nonce>%s</wsse:Nonce><wsu:Created>%s</wsu:Created></wsse:UsernameToken></wsse:Security></s:Header><s:Body xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:xsd=\"http://www.w3.org/2001/XMLSchema\"><Stop xmlns=\"http://www.onvif.org/ver20/ptz/wsdl\"><ProfileToken>%s</ProfileToken><PanTilt>true</PanTilt><Zoom>true</Zoom></Stop></s:Body></s:Envelope>",
-			user.c_str(), digest.c_str(), nonce.c_str(), created.c_str(), profile.c_str());
+					  user.c_str(), digest.c_str(), nonce.c_str(), created.c_str(), profile.c_str());
 	}
 
 	MsHttpMsg req;
@@ -205,14 +201,14 @@ void MsOnvifHandler::OnvifPtzControl(string user, string passwd,
 	if (ret < 0)
 	{
 		MS_LOG_ERROR("send err:%s", strReq.c_str());
-		delete[]buf;
+		delete[] buf;
 		return;
 	}
 
-	if ((cmd >= 1&& cmd <= 6) || (cmd >= 11 && cmd <= 14))
+	if ((cmd >= 1 && cmd <= 6) || (cmd >= 11 && cmd <= 14))
 	{
-		thread work(MsOnvifHandler::OnvifPtzControl, 
-			user, passwd, url, profile, presetID, -1, tout);
+		thread work(MsOnvifHandler::OnvifPtzControl,
+					user, passwd, url, profile, presetID, -1, tout);
 		work.detach();
 	}
 
@@ -221,15 +217,15 @@ void MsOnvifHandler::OnvifPtzControl(string user, string passwd,
 		ret = tcp_sock->Recv(buf, DEF_BUF_SIZE);
 		if (ret < 1)
 		{
-			delete[]buf;
+			delete[] buf;
 			break;
 		}
 
 		buf[ret] = '\0';
-		char* p = strstr(buf, "Envelope>");
+		char *p = strstr(buf, "Envelope>");
 		if (p)
 		{
-			delete[]buf;
+			delete[] buf;
 			break;
 		}
 	}
@@ -238,7 +234,7 @@ void MsOnvifHandler::OnvifPtzControl(string user, string passwd,
 }
 
 void MsOnvifHandler::QueryPreset(string user, string passwd,
-	string url, string profile, int nseq)
+								 string url, string profile, int nseq)
 {
 	json rsp;
 	rsp["code"] = 0;
@@ -283,10 +279,10 @@ void MsOnvifHandler::QueryPreset(string user, string passwd,
 	string nonce, created, digest;
 	gen_digest(passwd, created, nonce, digest);
 
-	char* buf = new char[DEF_BUF_SIZE];
+	char *buf = new char[DEF_BUF_SIZE];
 
 	ret = sprintf(buf, "<?xml version=\"1.0\" encoding=\"utf-8\"?><s:Envelope xmlns:s=\"http://www.w3.org/2003/05/soap-envelope\"><s:Header><wsse:Security xmlns:wsse=\"http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd\" xmlns:wsu=\"http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd\"><wsse:UsernameToken><wsse:Username>%s</wsse:Username><wsse:Password Type=\"http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-username-token-profile-1.0#PasswordDigest\">%s</wsse:Password><wsse:Nonce>%s</wsse:Nonce><wsu:Created>%s</wsu:Created></wsse:UsernameToken></wsse:Security></s:Header><s:Body xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:xsd=\"http://www.w3.org/2001/XMLSchema\"><GetPresets xmlns=\"http://www.onvif.org/ver20/ptz/wsdl\"><ProfileToken>%s</ProfileToken></GetPresets></s:Body></s:Envelope>",
-		user.c_str(), digest.c_str(), nonce.c_str(), created.c_str(), profile.c_str());
+				  user.c_str(), digest.c_str(), nonce.c_str(), created.c_str(), profile.c_str());
 
 	MsHttpMsg req;
 	string strReq;
@@ -309,7 +305,7 @@ void MsOnvifHandler::QueryPreset(string user, string passwd,
 		msRsp.m_strVal = rsp.dump();
 		MsReactorMgr::Instance()->PostMsg(msRsp);
 
-		delete[]buf;
+		delete[] buf;
 		return;
 	}
 
@@ -319,17 +315,17 @@ void MsOnvifHandler::QueryPreset(string user, string passwd,
 		ret = tcp_sock->Recv(buf + nrecv, DEF_BUF_SIZE - nrecv);
 		if (ret < 1)
 		{
-			delete[]buf;
+			delete[] buf;
 			break;
 		}
 
 		nrecv += ret;
 		buf[nrecv] = '\0';
-		char* p = strstr(buf, "Envelope>");
+		char *p = strstr(buf, "Envelope>");
 		if (p)
 		{
 			MS_LOG_DEBUG("presets:%s", buf);
-			char* pbuf = buf;
+			char *pbuf = buf;
 
 			while (true)
 			{
@@ -340,7 +336,7 @@ void MsOnvifHandler::QueryPreset(string user, string passwd,
 				}
 
 				p += strlen("Preset token=\"");
-				char* p1 = p;
+				char *p1 = p;
 
 				while (*p != '"')
 					++p;
@@ -354,18 +350,18 @@ void MsOnvifHandler::QueryPreset(string user, string passwd,
 				pbuf = p + 1;
 			}
 
-			delete[]buf;
+			delete[] buf;
 			break;
 		}
 	}
 
 	msRsp.m_strVal = rsp.dump();
-	MsReactorMgr::Instance()->PostMsg(msRsp);	
+	MsReactorMgr::Instance()->PostMsg(msRsp);
 }
 
 void MsOnvifHandler::proc_s1(shared_ptr<MsEvent> evt)
 {
-	char* p = strstr(m_buf, "XAddrs>");
+	char *p = strstr(m_buf, "XAddrs>");
 	if (!p)
 	{
 		MS_LOG_ERROR("buf err:%s", m_buf);
@@ -374,7 +370,7 @@ void MsOnvifHandler::proc_s1(shared_ptr<MsEvent> evt)
 	}
 
 	p += strlen("XAddrs>");
-	char* p1 = p;
+	char *p1 = p;
 	while (*p != ' ' && *p != '<')
 		++p;
 
@@ -389,6 +385,11 @@ void MsOnvifHandler::proc_s1(shared_ptr<MsEvent> evt)
 		MS_LOG_ERROR("devurl err:%s", devurl.c_str());
 		this->clear_evt(evt);
 		return;
+	}
+
+	if (m_dev->m_port == 0)
+	{
+		m_dev->m_port = port;
 	}
 
 	string nonce, created, digest;
@@ -406,7 +407,7 @@ void MsOnvifHandler::proc_s1(shared_ptr<MsEvent> evt)
 	}
 
 	ret = sprintf(m_buf, "<?xml version=\"1.0\" encoding=\"utf-8\"?><s:Envelope xmlns:s=\"http://www.w3.org/2003/05/soap-envelope\"><s:Header><wsse:Security xmlns:wsse=\"http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd\" xmlns:wsu=\"http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd\"><wsse:UsernameToken><wsse:Username>%s</wsse:Username><wsse:Password Type=\"http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-username-token-profile-1.0#PasswordDigest\">%s</wsse:Password><wsse:Nonce>%s</wsse:Nonce><wsu:Created>%s</wsu:Created></wsse:UsernameToken></wsse:Security></s:Header><s:Body xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:xsd=\"http://www.w3.org/2001/XMLSchema\"><GetServices xmlns=\"http://www.onvif.org/ver10/device/wsdl\"><IncludeCapability>false</IncludeCapability></GetServices></s:Body></s:Envelope>",
-		m_dev->m_user.c_str(), digest.c_str(), nonce.c_str(), created.c_str());
+				  m_dev->m_user.c_str(), digest.c_str(), nonce.c_str(), created.c_str());
 
 	MsHttpMsg req;
 	string strReq;
@@ -431,8 +432,8 @@ void MsOnvifHandler::proc_s1(shared_ptr<MsEvent> evt)
 	printf("%s\n", strReq.c_str());
 
 	shared_ptr<MsEvent> nevt = make_shared<MsEvent>(tcp_sock,
-		MS_FD_READ | MS_FD_CLOSE,
-		shared_from_this());
+													MS_FD_READ | MS_FD_CLOSE,
+													shared_from_this());
 
 	m_reactor->AddEvent(nevt);
 	m_reactor->DelEvent(m_evt);
@@ -443,7 +444,7 @@ void MsOnvifHandler::proc_s1(shared_ptr<MsEvent> evt)
 
 void MsOnvifHandler::proc_s2(shared_ptr<MsEvent> evt)
 {
-	char* p = strstr(m_buf, "Namespace>http://www.onvif.org/ver10/media/wsdl");
+	char *p = strstr(m_buf, "Namespace>http://www.onvif.org/ver10/media/wsdl");
 	if (!p)
 	{
 		MS_LOG_ERROR("buf err:%s", m_buf);
@@ -461,7 +462,7 @@ void MsOnvifHandler::proc_s2(shared_ptr<MsEvent> evt)
 	}
 
 	p += strlen("XAddr>");
-	char* p1 = p;
+	char *p1 = p;
 	while (*p != ' ' && *p != '<')
 		++p;
 
@@ -517,7 +518,7 @@ void MsOnvifHandler::proc_s2(shared_ptr<MsEvent> evt)
 	}
 
 	ret = sprintf(m_buf, "<?xml version=\"1.0\" encoding=\"utf-8\"?><s:Envelope xmlns:s=\"http://www.w3.org/2003/05/soap-envelope\"><s:Header><wsse:Security xmlns:wsse=\"http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd\" xmlns:wsu=\"http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd\"><wsse:UsernameToken><wsse:Username>%s</wsse:Username><wsse:Password Type=\"http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-username-token-profile-1.0#PasswordDigest\">%s</wsse:Password><wsse:Nonce>%s</wsse:Nonce><wsu:Created>%s</wsu:Created></wsse:UsernameToken></wsse:Security></s:Header><s:Body xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:xsd=\"http://www.w3.org/2001/XMLSchema\"><GetProfiles xmlns=\"http://www.onvif.org/ver10/media/wsdl\"/></s:Body></s:Envelope>",
-		m_dev->m_user.c_str(), digest.c_str(), nonce.c_str(), created.c_str());
+				  m_dev->m_user.c_str(), digest.c_str(), nonce.c_str(), created.c_str());
 
 	MsHttpMsg req;
 	string strReq;
@@ -540,8 +541,8 @@ void MsOnvifHandler::proc_s2(shared_ptr<MsEvent> evt)
 	}
 
 	shared_ptr<MsEvent> nevt = make_shared<MsEvent>(tcp_sock,
-		MS_FD_READ | MS_FD_CLOSE,
-		shared_from_this());
+													MS_FD_READ | MS_FD_CLOSE,
+													shared_from_this());
 
 	m_reactor->AddEvent(nevt);
 	m_reactor->DelEvent(m_evt);
@@ -552,7 +553,7 @@ void MsOnvifHandler::proc_s2(shared_ptr<MsEvent> evt)
 
 void MsOnvifHandler::proc_s3(shared_ptr<MsEvent> evt)
 {
-	char* p = strstr(m_buf, "Profiles token=\"");
+	char *p = strstr(m_buf, "Profiles token=\"");
 	if (!p)
 	{
 		MS_LOG_ERROR("buf err:%s", m_buf);
@@ -561,7 +562,7 @@ void MsOnvifHandler::proc_s3(shared_ptr<MsEvent> evt)
 	}
 
 	p += strlen("Profiles token=\"");
-	char* p1 = p;
+	char *p1 = p;
 
 	while (*p != '"')
 		++p;
@@ -594,8 +595,8 @@ void MsOnvifHandler::proc_s3(shared_ptr<MsEvent> evt)
 	}
 
 	ret = sprintf(m_buf, "<?xml version=\"1.0\" encoding=\"utf-8\"?><s:Envelope xmlns:s=\"http://www.w3.org/2003/05/soap-envelope\"><s:Header><wsse:Security xmlns:wsse=\"http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd\" xmlns:wsu=\"http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd\"><wsse:UsernameToken><wsse:Username>%s</wsse:Username><wsse:Password Type=\"http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-username-token-profile-1.0#PasswordDigest\">%s</wsse:Password><wsse:Nonce>%s</wsse:Nonce><wsu:Created>%s</wsu:Created></wsse:UsernameToken></wsse:Security></s:Header><s:Body xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:xsd=\"http://www.w3.org/2001/XMLSchema\"><GetStreamUri xmlns=\"http://www.onvif.org/ver10/media/wsdl\"><StreamSetup><Stream xmlns=\"http://www.onvif.org/ver10/schema\">RTP-Unicast</Stream><Transport xmlns=\"http://www.onvif.org/ver10/schema\"><Protocol>UDP</Protocol></Transport></StreamSetup><ProfileToken>%s</ProfileToken></GetStreamUri></s:Body></s:Envelope>",
-		m_dev->m_user.c_str(), digest.c_str(), nonce.c_str(),
-		created.c_str(), m_profile.c_str());
+				  m_dev->m_user.c_str(), digest.c_str(), nonce.c_str(),
+				  created.c_str(), m_profile.c_str());
 
 	MsHttpMsg req;
 	string strReq;
@@ -618,8 +619,8 @@ void MsOnvifHandler::proc_s3(shared_ptr<MsEvent> evt)
 	}
 
 	shared_ptr<MsEvent> nevt = make_shared<MsEvent>(tcp_sock,
-		MS_FD_READ | MS_FD_CLOSE,
-		shared_from_this());
+													MS_FD_READ | MS_FD_CLOSE,
+													shared_from_this());
 
 	m_reactor->AddEvent(nevt);
 	m_reactor->DelEvent(m_evt);
@@ -630,7 +631,7 @@ void MsOnvifHandler::proc_s3(shared_ptr<MsEvent> evt)
 
 void MsOnvifHandler::proc_s4(shared_ptr<MsEvent> evt)
 {
-	char* p = strstr(m_buf, ":Uri>");
+	char *p = strstr(m_buf, ":Uri>");
 	if (!p)
 	{
 		MS_LOG_ERROR("buf err:%s", m_buf);
@@ -639,7 +640,7 @@ void MsOnvifHandler::proc_s4(shared_ptr<MsEvent> evt)
 	}
 
 	p += strlen(":Uri>");
-	char* p1 = p;
+	char *p1 = p;
 
 	while (*p != '<')
 		++p;
@@ -647,7 +648,7 @@ void MsOnvifHandler::proc_s4(shared_ptr<MsEvent> evt)
 	m_rtsp.assign(p1, p - p1);
 
 	MS_LOG_DEBUG("rtsp url:%s", m_rtsp.c_str());
-	
+
 	m_reactor->DelEvent(m_evt);
 	m_evt.reset();
 
@@ -679,7 +680,7 @@ void MsOnvifHandler::clear_evt(shared_ptr<MsEvent> evt)
 	m_reactor->DelEvent(evt);
 }
 
-int MsOnvifHandler::parse_uri(string& url, string& ip, int& port, string& uri)
+int MsOnvifHandler::parse_uri(string &url, string &ip, int &port, string &uri)
 {
 	if (0 != memcmp(url.c_str(), "http://", strlen("http://")))
 	{
@@ -714,12 +715,12 @@ int MsOnvifHandler::parse_uri(string& url, string& ip, int& port, string& uri)
 	return 0;
 }
 
-void MsOnvifHandler::gen_digest(string& passwd, string& created,
-	string& nonce, string& digest)
+void MsOnvifHandler::gen_digest(string &passwd, string &created,
+								string &nonce, string &digest)
 {
 	string nx1 = GenRandStr(20);
 
-	nonce = EncodeBase64((const unsigned char*)nx1.c_str(), nx1.size());
+	nonce = EncodeBase64((const unsigned char *)nx1.c_str(), nx1.size());
 	created = GmtTimeToStr(time(nullptr));
 	created += "Z";
 
@@ -729,4 +730,3 @@ void MsOnvifHandler::gen_digest(string& passwd, string& created,
 	sha1::calc(cc.c_str(), cc.size(), xxbuf);
 	digest = EncodeBase64(&xxbuf[0], 20);
 }
-

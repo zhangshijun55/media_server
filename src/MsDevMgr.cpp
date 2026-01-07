@@ -404,7 +404,7 @@ int MsDevMgr::AddCustomDevice(shared_ptr<MsGbDevice> dev)
           manufacturer, model, owner, civil_code, address, \
           ip_addr, user, pass, longitude, latitude, \
           port, url, ptz_type, type, protocol, \
-		  bind_ip, remark, onvif_profile, onvif_ptz_url) \
+		  bind_ip, remark) \
 values ('%s', '%s','%s', '%s', '%s', \
         '%s', '%s','%s', '%s', '%s', \
         '%s', '%s','%s', '%s', '%s', \
