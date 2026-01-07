@@ -126,10 +126,9 @@ public:
     }
 
     // TODO: add proper time duration handling
-    // TODO: gb record play back, ts has aac timestamp gap issue
-    //       the audio pkt has dup timestamp sometimes, flv muxer can handle it,
+    // TODO: gb record play back, ts has aac timestamp gap issue when
+    //       the audio pkt has dup timestamp, flv muxer can handle it,
     //       but ts muxer not, need further investigate
-    // TODO: mpegts.js can't play http ts BigBuckBunny correctly, need further investigate
     void OnStreamInfo(AVStream *video, int videoIdx, AVStream *audio,
                       int audioIdx) override
     {

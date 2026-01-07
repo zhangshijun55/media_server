@@ -664,7 +664,7 @@ void MsGbSource::ProcessRtp(uint8_t *buf, int len)
         if (seq != expected)
         {
             // pkt loss
-            // TODO: add loss statistic
+            // TODO: add loss problem handling
             MS_LOG_WARN("gb source rtp pkt loss, last seq:%d recv seq:%d",
                         m_seq, seq);
         }
