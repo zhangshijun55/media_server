@@ -956,7 +956,7 @@ void MsHttpServer::PtzControl(shared_ptr<MsEvent> evt, MsHttpMsg &msg,
             return SendHttpRsp(evt->GetSocket(), rsp.dump());
         }
 
-        if (ptzCmd < 1 || ptzCmd > 9)
+        if (ptzCmd < 1 || ptzCmd > 14 || ptzCmd == 10)
         {
             rsp["code"] = 1;
             rsp["msg"] = "param error";

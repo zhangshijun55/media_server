@@ -13,6 +13,8 @@ A  media server implementation supporting GB/T 28181, RTSP, and HTTP streaming p
   - [Add RTSP Device](#add-rtsp-device)
   - [Add ONVIF Device](#add-onvif-device)
   - [Get Device Preview URL](#get-device-preview-url)
+  - [PTZ Control](#ptz-control)
+  - [Query Presets](#query-presets)
   - [GB28181 Integration](#gb28181-integration)
   - [GB28181 Record Playback](#gb28181-record-playback)
 
@@ -214,6 +216,61 @@ curl -X POST http://127.0.0.1:26080/device/url \
 ```
 
 **Note:** You can use [mpegts.js](https://github.com/xqq/mpegts.js) to play HTTP-FLV/TS streams in the browser.
+
+### PTZ Control
+
+To control the PTZ (Pan-Tilt-Zoom) of a device. Supported for GB28181 and ONVIF devices. Note that some devices may not support all commands.
+
+**URL:** `http://<server_ip>:<httpPort>/device/ptz`
+
+**Method:** `POST`
+
+**Body:**
+
+```json
+{
+    "deviceId": "34020000001320000001",
+    "ptzCmd": 1,
+    "timeout": 500,
+    "presetID": "1"
+}
+```
+
+- `deviceId` (required): The ID of the device.
+- `ptzCmd` (required): The PTZ command integer.
+  - `1`: Move Left
+  - `2`: Move Right
+  - `3`: Move Up
+  - `4`: Move Down
+  - `5`: Zoom In
+  - `6`: Zoom Out
+  - `7`: Goto Preset
+  - `8`: Set Preset
+  - `9`: Delete Preset
+  - `11`: Move Left Up
+  - `12`: Move Right Up
+  - `13`: Move Left Down
+  - `14`: Move Right Down
+- `timeout` (optional): The duration of the movement in milliseconds. After this time, the movement stops (default: 500).
+- `presetID` (optional): The preset ID, required for preset commands (7, 8, 9).
+
+### Query Presets
+
+To query the presets of a device.
+
+**URL:** `http://<server_ip>:<httpPort>/device/preset`
+
+**Method:** `POST`
+
+**Body:**
+
+```json
+{
+    "deviceId": "34020000001320000001"
+}
+```
+
+- `deviceId` (required): The ID of the device.
 
 ### GB28181 Integration
 

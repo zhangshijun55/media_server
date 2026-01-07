@@ -83,14 +83,21 @@ void MsHttpHandler::HandleRead(shared_ptr<MsEvent> evt)
 			return;
 		}
 
-		MS_LOG_DEBUG("recv:%s", m_buf);
-
 		char *oriP2 = p2;
 		MsHttpMsg msg;
 
 		msg.Parse(p2);
 
 		int cntLen = msg.m_contentLength.GetIntVal();
+		// if cntLen over 1.5GB, reject
+		if (cntLen < 0 || cntLen > 0x60000000)
+		{
+			MS_LOG_ERROR("content len err:%d", cntLen);
+			m_bufOff = 0;
+			m_server->DelEvent(evt);
+			return;
+		}
+
 		int left = m_bufOff - (p2 - oriP2);
 
 		if (left < cntLen)
@@ -120,6 +127,7 @@ void MsHttpHandler::HandleRead(shared_ptr<MsEvent> evt)
 			return;
 		}
 
+		MS_LOG_DEBUG("recv:%s", m_buf);
 		m_server->HandleHttpReq(evt, msg, p2, cntLen);
 
 		p2 += cntLen;
