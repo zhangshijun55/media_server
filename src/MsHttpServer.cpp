@@ -2,7 +2,6 @@
 #include "MsConfig.h"
 #include "MsDbMgr.h"
 #include "MsDevMgr.h"
-#include "MsHttpClient.h"
 #include "MsHttpHandler.h"
 #include "MsLog.h"
 #include "MsPortAllocator.h"

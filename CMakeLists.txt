@@ -34,7 +34,6 @@ set(MAIN_SOURCES
     src/MsGbServer.cpp
     src/MsGbServerHandler.cpp
     src/MsGbSource.cpp
-    src/MsHttpClient.cpp
     src/MsHttpHandler.cpp
     src/MsHttpServer.cpp
     src/MsHttpStream.cpp

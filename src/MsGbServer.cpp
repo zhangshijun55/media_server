@@ -1,7 +1,6 @@
 #include "MsGbServer.h"
 #include "MsGbServerHandler.h"
 #include "MsConfig.h"
-#include "MsHttpClient.h"
 #include "MsPortAllocator.h"
 #include <thread>
 #include "MsDevMgr.h"

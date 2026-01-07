@@ -1,7 +1,6 @@
 #include "MsDevMgr.h"
 #include "MsConfig.h"
 #include "MsDbMgr.h"
-#include "MsHttpClient.h"
 #include "MsLog.h"
 #include "MsReactor.h"
 #include "MsPortAllocator.h"
