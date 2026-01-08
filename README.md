@@ -69,7 +69,18 @@ Configuration is loaded from a JSON file. The `conf` directory in the output fol
 
 ## Usage
 
-Run the compiled executable:
+You can use the provided scripts to start and stop the service:
+
+```bash
+cd output
+# Start the service
+./start.sh
+
+# Stop the service
+./stop.sh
+```
+
+Or run the compiled executable directly:
 
 ```bash
 cd output
