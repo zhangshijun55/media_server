@@ -2,6 +2,7 @@
 #include "MsConfig.h"
 #include "MsDevMgr.h"
 #include "MsGbServerHandler.h"
+#include "MsMsgDef.h"
 #include "MsPortAllocator.h"
 #include <thread>
 

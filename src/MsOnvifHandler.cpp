@@ -2,6 +2,7 @@
 #include "MsDevMgr.h"
 #include "MsHttpMsg.h"
 #include "MsLog.h"
+#include "MsMsgDef.h"
 #include "MsSha1.h"
 #include "MsSocket.h"
 

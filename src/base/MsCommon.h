@@ -84,43 +84,6 @@ public:
 	int m_bodyLen;
 };
 
-struct SGbContext {
-	string gbID;
-	string gbCallID;
-	string rtpIP;
-	int rtpPort;
-	int transport;
-	int type;
-	string startTime;
-	string endTime;
-};
-
-struct SData {
-	uint8_t *m_buf;
-	int m_len;
-};
-
-struct SMediaNode {
-	int node_id;
-	int idle;
-	int m_lastUsed;
-	int httpStreamPort;
-	int rtspPort;
-	int httpPort;
-	string httpMediaIP;
-	string nodeIp;
-};
-
-class SPtzCmd {
-public:
-	string m_devid;
-	string m_presetID;
-	int m_ptzCmd;
-	int m_timeout;
-};
-
-enum TRASNSPORT { EN_UDP = 0, EN_TCP_ACTIVE, EN_TCP_PASSIVE };
-
 std::string EncodeBase64(const unsigned char *data, size_t in_len);
 void DecodeBase64(const std::string &input, std::vector<unsigned char> &out);
 string GenRandStr(int len);

@@ -1,5 +1,6 @@
 #pragma once
 #include "MsLog.h"
+#include "MsMsgDef.h"
 #include "MsResManager.h"
 #include "MsRtspMsg.h"
 

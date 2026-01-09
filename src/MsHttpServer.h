@@ -1,6 +1,7 @@
 #pragma once
 #include "MsHttpHandler.h"
 #include "MsHttpMsg.h"
+#include "MsMsgDef.h"
 #include "MsOnvifHandler.h"
 #include "MsReactor.h"
 #include "MsSocket.h"

@@ -6,6 +6,7 @@
 #include "MsHttpServer.h"
 #include "MsHttpStream.h"
 #include "MsLog.h"
+#include "MsMsgDef.h"
 #include "MsOsConfig.h"
 #include "MsRtspSink.h"
 #include "MsTimer.h"

@@ -1,4 +1,5 @@
 #pragma once
+#include "MsMsgDef.h"
 #include "MsResManager.h"
 
 class MsRtspSource : public MsMediaSource {

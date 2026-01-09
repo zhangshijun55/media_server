@@ -1,5 +1,6 @@
 #include "MsGbServerHandler.h"
 #include "MsLog.h"
+#include "MsMsgDef.h"
 #include <string.h>
 
 MsGbServerHandler::MsGbServerHandler(const shared_ptr<MsIGbServer> &server)

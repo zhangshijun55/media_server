@@ -1,5 +1,6 @@
 #pragma once
 #include "MsCommon.h"
+#include "MsMsgDef.h"
 #include "MsResManager.h"
 #include <condition_variable>
 #include <mutex>

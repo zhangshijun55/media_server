@@ -2,6 +2,7 @@
 #include "MsConfig.h"
 #include "MsDevMgr.h"
 #include "MsLog.h"
+#include "MsMsgDef.h"
 #include "MsResManager.h"
 #include "MsSourceFactory.h"
 #include "nlohmann/json.hpp"
