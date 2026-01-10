@@ -511,26 +511,3 @@ std::vector<std::string> SplitString(const std::string &input, const std::string
 
 	return result;
 }
-
-int SendSmallBlock(const uint8_t *buf, int buf_size, int fd) {
-	int ret = 0;
-	const uint8_t *pBuf = buf;
-	int pLen = buf_size;
-
-	while (pLen > 0) {
-		ret = send(fd, pBuf, pLen, 0);
-		if (ret >= 0) {
-			pLen -= ret;
-			pBuf += ret;
-		} else if (MS_LAST_ERROR == EAGAIN) {
-			continue;
-		} else if (MS_LAST_ERROR == EINTR) {
-			continue;
-		} else {
-			MS_LOG_ERROR("send error,err:%d", MS_LAST_ERROR);
-			return -1;
-		}
-	}
-
-	return 0;
-}

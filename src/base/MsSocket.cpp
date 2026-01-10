@@ -165,20 +165,56 @@ int MsSocket::Recvfrom(char *buf, int len, MsInetAddr &addr) {
 	return ret;
 }
 
-int MsSocket::Send(const char *buf, int len) {
-	int ret;
+int MsSocket::Send(const char *buf, int len, int *psend) {
+	int ret = 0;
+	int snd = 0;
 
 	while (len) {
 		ret = send(m_sock, buf, len, 0);
 		if (ret < 0) {
+			if (MS_LAST_ERROR == EINTR) {
+				continue;
+			} else if (MS_LAST_ERROR == EAGAIN) {
+				ret = MS_TRY_AGAIN;
+				break;
+			}
+
 			MS_LOG_ERROR("send socket err:%d", MS_LAST_ERROR);
 			break;
 		}
 		buf += ret;
 		len -= ret;
+		snd += ret;
 	}
 
-	return ret < 0 ? ret : len;
+	if (psend) {
+		*psend = snd;
+	}
+
+	return ret < 0 ? ret : snd;
+}
+
+int MsSocket::BlockSend(const char *buf, int len) {
+	int ret = 0;
+	const char *pBuf = buf;
+	int pLen = len;
+
+	while (pLen > 0) {
+		ret = send(m_sock, pBuf, pLen, 0);
+		if (ret >= 0) {
+			pLen -= ret;
+			pBuf += ret;
+		} else if (MS_LAST_ERROR == EAGAIN) {
+			continue;
+		} else if (MS_LAST_ERROR == EINTR) {
+			continue;
+		} else {
+			MS_LOG_ERROR("send error,err:%d", MS_LAST_ERROR);
+			return -1;
+		}
+	}
+
+	return 0;
 }
 
 int MsSocket::Sendto(const char *buf, int len, MsInetAddr &addr) {

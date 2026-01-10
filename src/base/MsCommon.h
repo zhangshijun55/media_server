@@ -90,4 +90,3 @@ string GenRandStr(int len);
 void CvtToHex(unsigned char *in, unsigned char *out);
 void SleepMs(int ms);
 vector<string> SplitString(const string &input, const string &delimiter);
-int SendSmallBlock(const uint8_t *buf, int buf_size, int fd);

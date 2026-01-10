@@ -3,6 +3,10 @@
 #include "MsOsConfig.h"
 #include <memory>
 
+enum {
+	MS_TRY_AGAIN = -1000,
+};
+
 class MsSocket {
 public:
 	MsSocket(MS_SOCKET s);
@@ -16,7 +20,8 @@ public:
 	int Accept(shared_ptr<MsSocket> &rSock);
 	int Recv(char *buf, int len);
 	int Recvfrom(char *buf, int len, MsInetAddr &addr);
-	int Send(const char *buf, int len);
+	int Send(const char *buf, int len, int *psend = nullptr);
+	int BlockSend(const char *buf, int len);
 	int Sendto(const char *buf, int len, MsInetAddr &addr);
 	void SetNonBlock();
 	void SetBlock();
@@ -26,8 +31,4 @@ public:
 
 private:
 	MS_SOCKET m_sock;
-};
-
-struct sock_wrap {
-	shared_ptr<MsSocket> sock;
 };

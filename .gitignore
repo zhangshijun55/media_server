@@ -1,0 +1,4 @@
+build/*
+output/log/*
+output/files/*
+output/media_server

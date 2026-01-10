@@ -1,4 +1,5 @@
 #pragma once
+#include "MsHttpMsg.h"
 #include <stdint.h>
 #include <string>
 
@@ -25,6 +26,8 @@ enum MS_MSG_ID {
 	MS_GB_SERVER_HANDLER_CLOSE,
 	MS_GET_REGIST_DOMAIN,
 	MS_STOP_INVITE_CALL,
+	MS_RTC_MSG,
+	MS_RTC_PEER_CLOSED,
 };
 
 enum MS_SERVICE_TYPE {
@@ -36,7 +39,10 @@ enum MS_SERVICE_TYPE {
 	MS_HTTP_STREAM,
 	MS_RTSP_SOURCE,
 	MS_RTSP_SERVER,
+	MS_RTC_SERVER,
 };
+
+enum TRASNSPORT { EN_UDP = 0, EN_TCP_ACTIVE, EN_TCP_PASSIVE };
 
 struct SGbContext {
 	string gbID;
@@ -73,4 +79,8 @@ public:
 	int m_timeout;
 };
 
-enum TRASNSPORT { EN_UDP = 0, EN_TCP_ACTIVE, EN_TCP_PASSIVE };
+struct SRtcMsg {
+	MsHttpMsg httpMsg;
+	string sdp;
+	shared_ptr<MsSocket> sock;
+};

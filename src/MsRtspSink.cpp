@@ -645,26 +645,29 @@ void MsRtspSink::ActiveClose() {
 void MsRtspSink::OnWriteEvent(shared_ptr<MsEvent> evt) {
 	if (m_error)
 		return;
-	int fd = m_sock->GetFd();
-	int ret = 0;
 
-	std::lock_guard<std::mutex> lock(m_queDataMutex);
+	int ret = 0;
+	auto sock = evt->GetSharedSocket();
+
 	while (m_queData.size()) {
 		SData &sd = m_queData.front();
 		uint8_t *pBuf = sd.m_buf;
 
 		while (sd.m_len > 0) {
-			ret = send(fd, pBuf, sd.m_len, 0);
+			int psend = 0;
+			ret = sock->Send((const char *)pBuf, sd.m_len, &psend);
+			if (psend > 0) {
+				sd.m_len -= psend;
+				pBuf += psend;
+			}
+
 			if (ret >= 0) {
-				sd.m_len -= ret;
-				pBuf += ret;
-			} else if (MS_LAST_ERROR == EAGAIN) {
+				// do nothing
+			} else if (ret == MS_TRY_AGAIN) {
 				if (pBuf != sd.m_buf) {
 					memmove(sd.m_buf, pBuf, sd.m_len);
 				}
 				return;
-			} else if (MS_LAST_ERROR == EINTR) {
-				continue;
 			} else {
 				MS_LOG_INFO("http sink streamID:%s, sinkID:%d err:%d", m_streamID.c_str(), m_sinkID,
 				            MS_LAST_ERROR);
@@ -674,6 +677,7 @@ void MsRtspSink::OnWriteEvent(shared_ptr<MsEvent> evt) {
 		}
 
 		delete[] sd.m_buf;
+		std::lock_guard<std::mutex> lock(m_queDataMutex);
 		m_queData.pop();
 	}
 
@@ -702,11 +706,11 @@ int MsRtspSink::WriteBuffer(const uint8_t *buf, int buf_size, int channel) {
 				m_queData.push(sd);
 				return buf_size;
 			} else {
-				SendSmallBlock(buf, buf_size, m_sock->GetFd());
+				m_sock->BlockSend((const char *)buf, buf_size);
 				return buf_size;
 			}
 		} else {
-			SendSmallBlock(buf, buf_size, m_sock->GetFd());
+			m_sock->BlockSend((const char *)buf, buf_size);
 			return buf_size;
 		}
 	}
@@ -725,14 +729,13 @@ int MsRtspSink::WriteBuffer(const uint8_t *buf, int buf_size, int channel) {
 		m_queData.push(sd);
 		return buf_size;
 	} else {
-		int fd = m_sock->GetFd();
 		uint8_t header_buf[4];
 		uint8_t *pheader = header_buf;
 		avio_w8(pheader, '$');
 		avio_w8(pheader, channel);
 		avio_wb16(pheader, buf_size);
 
-		if (SendSmallBlock((const uint8_t *)header_buf, 4, fd) < 0) {
+		if (m_sock->BlockSend((const char *)header_buf, 4) < 0) {
 			MS_LOG_ERROR("rtsp sink send header failed");
 			return buf_size;
 		}
@@ -742,11 +745,16 @@ int MsRtspSink::WriteBuffer(const uint8_t *buf, int buf_size, int channel) {
 		int ret = 0;
 
 		while (pLen > 0) {
-			ret = send(fd, pBuf, pLen, 0);
+			int psend = 0;
+			ret = m_sock->Send((const char *)pBuf, pLen, &psend);
+			if (psend > 0) {
+				pLen -= psend;
+				pBuf += psend;
+			}
+
 			if (ret >= 0) {
-				pLen -= ret;
-				pBuf += ret;
-			} else if (MS_LAST_ERROR == EAGAIN) {
+				// do nothing
+			} else if (ret == MS_TRY_AGAIN) {
 				SData sd;
 				sd.m_buf = new uint8_t[pLen];
 				memcpy(sd.m_buf, pBuf, pLen);
@@ -763,8 +771,6 @@ int MsRtspSink::WriteBuffer(const uint8_t *buf, int buf_size, int channel) {
 				MS_LOG_INFO("sink %s:%d regist write", m_type.c_str(), m_sinkID);
 
 				return buf_size;
-			} else if (MS_LAST_ERROR == EINTR) {
-				continue;
 			} else {
 				MS_LOG_INFO("sink %s:%d err:%d", m_type.c_str(), m_sinkID, MS_LAST_ERROR);
 				return buf_size;

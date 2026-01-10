@@ -13,11 +13,14 @@ public:
 	MsComHeader m_connection;
 	MsComHeader m_host;
 	MsComHeader m_transport;
-	MsComHeader m_access;
-	MsComHeader m_access2;
-	MsComHeader m_access3;
+	MsComHeader m_allowOrigin;
+	MsComHeader m_allowMethod;
+	MsComHeader m_allowHeader;
+	MsComHeader m_exposeHeader;
+	MsComHeader m_location;
 };
 
 void SendHttpRsp(MsSocket *sock, const string &rspBody);
 void SendHttpRsp(MsSocket *sock, MsHttpMsg &rsp);
 void SendHttpRspEx(MsSocket *sock, const string &rspBody);
+void SendHttpRspEx(MsSocket *sock, MsHttpMsg &rsp);

@@ -4,9 +4,10 @@
 #include "MsSocket.h"
 
 MsHttpMsg::MsHttpMsg()
-    : m_connection("Connection"), m_host("Host"), m_access("Access-Control-Allow-Origin"),
-      m_access2("Access-Control-Allow-Methods"), m_access3("Access-Control-Allow-Headers"),
-      m_transport("Transfer-Encoding") {}
+    : m_connection("Connection"), m_host("Host"), m_allowOrigin("Access-Control-Allow-Origin"),
+      m_allowMethod("Access-Control-Allow-Methods"), m_allowHeader("Access-Control-Allow-Headers"),
+      m_exposeHeader("Access-Control-Expose-Headers"), m_transport("Transfer-Encoding"),
+      m_location("Location") {}
 
 void MsHttpMsg::Dump(string &rsp) {
 	if (m_status.size()) {
@@ -20,10 +21,12 @@ void MsHttpMsg::Dump(string &rsp) {
 		m_contentLength.Dump(rsp);
 	m_contentType.Dump(rsp);
 	m_connection.Dump(rsp);
+	m_location.Dump(rsp);
 	m_transport.Dump(rsp);
-	m_access.Dump(rsp);
-	m_access2.Dump(rsp);
-	m_access3.Dump(rsp);
+	m_allowOrigin.Dump(rsp);
+	m_allowMethod.Dump(rsp);
+	m_allowHeader.Dump(rsp);
+	m_exposeHeader.Dump(rsp);
 
 	rsp += "\r\n";
 
@@ -88,10 +91,11 @@ void SendHttpRspEx(MsSocket *sock, const string &rspBody) {
 	rsp.m_reason = "OK";
 	rsp.m_connection.SetValue("close");
 	rsp.m_contentType.SetValue("application/json; charset=UTF-8");
-	rsp.m_access.SetValue("*");
-	rsp.m_access2.SetValue("GET, POST, OPTIONS");
-	rsp.m_access3.SetValue("DNT,X-Mx-ReqToken,Keep-Alive,User-Agent,X-Requested-With,If-Modified-"
-	                       "Since,Cache-Control,Content-Type,Authorization");
+	rsp.m_allowOrigin.SetValue("*");
+	rsp.m_allowMethod.SetValue("GET, POST, OPTIONS, DELETE");
+	rsp.m_allowHeader.SetValue(
+	    "DNT,X-Mx-ReqToken,Keep-Alive,User-Agent,X-Requested-With,If-Modified-"
+	    "Since,Cache-Control,Content-Type,Authorization,Location");
 
 	rsp.SetBody(rspBody.c_str(), rspBody.size());
 
@@ -105,4 +109,19 @@ void SendHttpRsp(MsSocket *sock, MsHttpMsg &rsp) {
 	int ret = sock->Send(strRsp.c_str(), strRsp.size());
 
 	MS_LOG_DEBUG("send[%d:%d]:%s", ret, strRsp.size(), strRsp.c_str());
+}
+
+void SendHttpRspEx(MsSocket *sock, MsHttpMsg &rsp) {
+
+	rsp.m_connection.SetValue("close");
+	if (!rsp.m_contentType.m_exist) {
+		rsp.m_contentType.SetValue("application/json; charset=UTF-8");
+	}
+	rsp.m_allowOrigin.SetValue("*");
+	rsp.m_allowMethod.SetValue("GET, POST, OPTIONS, DELETE");
+	rsp.m_allowHeader.SetValue(
+	    "DNT,X-Mx-ReqToken,Keep-Alive,User-Agent,X-Requested-With,If-Modified-"
+	    "Since,Cache-Control,Content-Type,Authorization,Location");
+
+	SendHttpRsp(sock, rsp);
 }

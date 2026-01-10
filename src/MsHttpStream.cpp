@@ -66,25 +66,29 @@ public:
 	void HandleWrite(shared_ptr<MsEvent> evt) override {
 		if (m_error)
 			return;
-		int fd = m_sock->GetFd();
+
 		int ret = 0;
+		auto sock = evt->GetSharedSocket();
 
 		while (m_queData.size()) {
 			SData &sd = m_queData.front();
 			uint8_t *pBuf = sd.m_buf;
 
 			while (sd.m_len > 0) {
-				ret = send(fd, pBuf, sd.m_len, 0);
+				int psend = 0;
+				ret = sock->Send((const char *)pBuf, sd.m_len, &psend);
+				if (psend > 0) {
+					sd.m_len -= psend;
+					pBuf += psend;
+				}
+
 				if (ret >= 0) {
-					sd.m_len -= ret;
-					pBuf += ret;
-				} else if (MS_LAST_ERROR == EAGAIN) {
+					// do nothing, handled in psend
+				} else if (ret == MS_TRY_AGAIN) {
 					if (pBuf != sd.m_buf) {
 						memmove(sd.m_buf, pBuf, sd.m_len);
 					}
 					return;
-				} else if (MS_LAST_ERROR == EINTR) {
-					continue;
 				} else {
 					MS_LOG_INFO("http sink streamID:%s, sinkID:%d err:%d", m_streamID.c_str(),
 					            m_sinkID, MS_LAST_ERROR);
@@ -94,6 +98,7 @@ public:
 			}
 
 			delete[] sd.m_buf;
+			std::lock_guard<std::mutex> lock(m_queDataMutex);
 			m_queData.pop();
 		}
 
@@ -206,9 +211,9 @@ public:
 			}
 
 			rsp.m_transport.SetValue("chunked");
-			rsp.m_access.SetValue("*");
-			rsp.m_access2.SetValue("GET, POST, OPTIONS");
-			rsp.m_access3.SetValue(
+			rsp.m_allowOrigin.SetValue("*");
+			rsp.m_allowMethod.SetValue("GET, POST, OPTIONS");
+			rsp.m_allowHeader.SetValue(
 			    "DNT,X-Mx-ReqToken,range,Keep-Alive,User-Agent,X-Requested-With,If-"
 			    "Modified-Since,Cache-Control,Content-Type,Authorization");
 
@@ -227,30 +232,38 @@ public:
 			memcpy(sd.m_buf + header_len, buf, buf_size);
 			memcpy(sd.m_buf + header_len + buf_size, "\r\n", 2);
 			sd.m_len = total_chunk_size;
+			std::lock_guard<std::mutex> lock(m_queDataMutex);
 			m_queData.push(sd);
 		} else {
-			if (SendSmallBlock((const uint8_t *)chunk_header, header_len, m_sock->GetFd()) < 0) {
+			if (m_sock->BlockSend((const char *)chunk_header, header_len) < 0) {
 				MS_LOG_ERROR("http sink send chunk header failed");
 				return buf_size;
 			}
 
-			int fd = m_sock->GetFd();
-			const uint8_t *pBuf = buf;
+			const char *pBuf = (const char *)buf;
 			int pLen = buf_size;
 			int ret = 0;
 
 			while (pLen > 0) {
-				ret = send(fd, pBuf, pLen, 0);
+				int psend = 0;
+				m_sock->Send(pBuf, pLen, &psend);
+				if (psend > 0) {
+					pLen -= psend;
+					pBuf += psend;
+				}
+
 				if (ret >= 0) {
-					pLen -= ret;
-					pBuf += ret;
-				} else if (MS_LAST_ERROR == EAGAIN) {
+					// do nothing, handled in psend
+				} else if (ret == MS_TRY_AGAIN) {
 					SData sd;
 					sd.m_buf = new uint8_t[pLen + 2];
 					memcpy(sd.m_buf, pBuf, pLen);
 					memcpy(sd.m_buf + pLen, "\r\n", 2);
 					sd.m_len = pLen + 2;
-					m_queData.push(sd);
+					{
+						std::lock_guard<std::mutex> lock(m_queDataMutex);
+						m_queData.push(sd);
+					}
 
 					// regist write
 					m_evt->SetEvent(MS_FD_READ | MS_FD_CLOSE | MS_FD_CONNECT);
@@ -259,15 +272,13 @@ public:
 					MS_LOG_INFO("sink %s:%d regist write", m_type.c_str(), m_sinkID);
 
 					return buf_size;
-				} else if (MS_LAST_ERROR == EINTR) {
-					continue;
 				} else {
 					MS_LOG_INFO("sink %s:%d err:%d", m_type.c_str(), m_sinkID, MS_LAST_ERROR);
 					return buf_size;
 				}
 			}
 
-			if (SendSmallBlock((const uint8_t *)"\r\n", 2, m_sock->GetFd()) < 0) {
+			if (m_sock->BlockSend("\r\n", 2) < 0) {
 				MS_LOG_ERROR("http sink send chunk tail failed");
 				return buf_size;
 			}
@@ -344,6 +355,7 @@ private:
 		}
 	}
 
+	std::mutex m_queDataMutex;
 	std::queue<SData> m_queData;
 	std::shared_ptr<MsSocket> m_sock;
 	std::shared_ptr<MsReactor> m_reactor;

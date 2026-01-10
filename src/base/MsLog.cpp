@@ -6,7 +6,7 @@
 #include <string>
 #include <thread>
 
-#define MAX_LOG_LEN 2048
+#define MAX_LOG_LEN 6000
 #define MAX_LOG_QUEUE 512
 
 unique_ptr<MsLog> MsLog::m_log;
