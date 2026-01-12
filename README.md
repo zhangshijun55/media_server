@@ -18,6 +18,7 @@ A  media server implementation supporting GB/T 28181, RTSP, WebRTC and HTTP stre
   - [File Playback](#file-playback)
   - [GB28181 Integration](#gb28181-integration)
   - [GB28181 Record Playback](#gb28181-record-playback)
+  - [WebRTC WHIP Usage](#webrtc-whip-usage)
 
 ## Features
 
@@ -453,3 +454,33 @@ To query the presets of a device.
    ```
 
    You can use RTSP or HTTP-FLV/TS players (like mpegts.js) to play these playback streams.
+
+### WebRTC WHIP Usage
+
+1. **Publish Stream (WHIP)**
+
+   Publish a WebRTC stream to the media server using the WHIP protocol.
+
+   **URL:** `http://<server_ip>:<httpPort>/rtc/whip`
+   **Method:** `POST`
+   **Body:** SDP Offer
+
+   **Response:** SDP Answer (201 Created)
+
+2. **Get Live Sessions**
+
+   Retrieve the list of active WebRTC sessions.
+
+   **URL:** `http://<server_ip>:<httpPort>/rtc/session`
+   **Method:** `GET`
+
+3. **Get Playback URL**
+
+   Get the playback URL for a specific WebRTC session.
+
+   **URL:** `http://<server_ip>:<httpPort>/rtc/session/url`
+   **Method:** `GET`
+   **Parameters:**
+   - `sessionId` (required): The ID of the session.
+
+   **Note:** Converting WebRTC streams to HTTP-FLV requires FFmpeg 8.0 or above.

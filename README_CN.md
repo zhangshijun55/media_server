@@ -18,6 +18,7 @@
   - [文件回放](#文件回放)
   - [GB28181 集成](#gb28181-集成)
   - [GB28181 录像回放](#gb28181-录像回放)
+  - [WebRTC WHIP 使用](#webrtc-whip-使用)
 
 ## 功能特性
 
@@ -453,3 +454,33 @@ curl -X POST http://127.0.0.1:26080/device/url \
    ```
 
    您可以使用 RTSP 或 HTTP-FLV/TS 播放器 (如 mpegts.js) 播放这些回放流。
+
+### WebRTC WHIP 使用
+
+1. **推流 (WHIP)**
+
+   使用 WHIP 协议发布 WebRTC 流到媒体服务器。
+
+   **URL:** `http://<server_ip>:<httpPort>/rtc/whip`
+   **Method:** `POST`
+   **Body:** SDP Offer
+
+   **响应:** SDP Answer (201 Created)
+
+2. **获取实时会话**
+
+   获取当前活跃的 WebRTC 会话列表。
+
+   **URL:** `http://<server_ip>:<httpPort>/rtc/session`
+   **Method:** `GET`
+
+3. **获取回放地址**
+
+   获取特定 WebRTC 会话的回放地址。
+
+   **URL:** `http://<server_ip>:<httpPort>/rtc/session/url`
+   **Method:** `GET`
+   **参数:**
+   - `sessionId` (必填): 会话 ID。
+
+   **注意:** 将 WebRTC 流转换为 HTTP-FLV 需要 FFmpeg 8.0 或更高版本。
