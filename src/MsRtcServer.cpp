@@ -92,8 +92,8 @@ void MsRtcServer::WhipProcess(SHttpTransferMsg *rtcMsg) {
 
 		rtc::Configuration config;
 		config.enableIceUdpMux = true;
-		config.portRangeBegin = 26090;
-		config.portRangeEnd = 26090;
+		config.portRangeBegin = MsConfig::Instance()->GetConfigInt("rtcPort");
+		config.portRangeEnd = config.portRangeBegin;
 
 		auto pc = make_shared<rtc::PeerConnection>(config);
 
