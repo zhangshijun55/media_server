@@ -20,32 +20,6 @@ using httpHandle = void (MsHttpServer::*)(shared_ptr<MsEvent>, MsHttpMsg &, char
 
 map<int, shared_ptr<SMediaNode>> MsHttpServer::m_mediaNode;
 
-static void GetParam(const char *key, string &value, const string &uri) {
-	const char *p = strstr(uri.c_str(), key);
-	if (!p) {
-		return;
-	}
-
-	p += strlen(key);
-
-	if (*p != '=') {
-		return;
-	}
-
-	++p;
-	const char *p2 = p;
-	while (*p2 != '&' && *p2 != '\r' && *p2 != '\n' && *p2 != '\0') {
-		++p2;
-	}
-
-	const char *x = p2 - 1;
-	if (*x == '/') {
-		p2 = x;
-	}
-
-	value.assign(p, p2 - p);
-}
-
 static void JsonToDev(shared_ptr<MsGbDevice> dev, int type, json &j) {
 	dev->m_deviceID = j["deviceId"].is_null() ? "" : j["deviceId"].get<string>();
 

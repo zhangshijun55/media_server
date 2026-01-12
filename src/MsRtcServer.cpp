@@ -54,6 +54,75 @@ void MsRtcServer::RtcProcess(SHttpTransferMsg *rtcMsg) {
 	// if httpMsg.uri contains "whip" then whip process else return 404
 	if (rtcMsg->httpMsg.m_uri.find("whip") != string::npos) {
 		return this->WhipProcess(rtcMsg);
+	}
+	// if uri start with /rtc/session then rtc process
+	else if (rtcMsg->httpMsg.m_uri.find("/rtc/session") == 0) {
+		MsHttpMsg &msg = rtcMsg->httpMsg;
+		shared_ptr<MsSocket> &sock = rtcMsg->sock;
+
+		// if uri has /url, get the playback url
+		if (msg.m_uri.find("/url") != string::npos) {
+			string sessionId;
+			GetParam("sessionId", sessionId, msg.m_uri);
+			{
+				std::lock_guard<std::mutex> lock(m_mtx);
+				auto it = m_pcMap.find(sessionId);
+				if (it == m_pcMap.end()) {
+					MS_LOG_WARN("pc:%s not found", sessionId.c_str());
+					MsHttpMsg rsp;
+					rsp.m_version = msg.m_version;
+					rsp.m_status = "404";
+					rsp.m_reason = "Not Found";
+					SendHttpRspEx(sock.get(), rsp);
+					return;
+				}
+			}
+#if ENABLE_HTTPS
+			string protocol = "https://";
+#else
+			string protocol = "http://";
+#endif
+
+			string httpIp = MsConfig::Instance()->GetConfigStr("localBindIP");
+			int httpPort = MsConfig::Instance()->GetConfigInt("httpPort");
+
+			json j;
+			char bb[512];
+			sprintf(bb, "%s%s:%d/live/%s.flv", protocol.c_str(), httpIp.c_str(), httpPort,
+			        sessionId.c_str());
+			j["httpFlvUrl"] = bb;
+
+			sprintf(bb, "%s%s:%d/live/%s.ts", protocol.c_str(), httpIp.c_str(), httpPort,
+			        sessionId.c_str());
+			j["httpTsUrl"] = bb;
+
+			sprintf(bb, "rtsp://%s:%d/live/%s", httpIp.c_str(),
+			        MsConfig::Instance()->GetConfigInt("rtspPort"), sessionId.c_str());
+			j["rtspUrl"] = bb;
+
+			json rsp;
+			rsp["code"] = 0;
+			rsp["msg"] = "success";
+			rsp["result"] = j;
+			SendHttpRsp(sock.get(), rsp.dump());
+		} else {
+			// return all whip session with info
+			json j, sessions = json::array();
+			{
+				std::lock_guard<std::mutex> lock(m_mtx);
+				for (auto &it : m_pcMap) {
+					json session;
+					session["sessionId"] = it.first;
+					session["videoCodec"] = it.second->_videoCodec;
+					session["audioCodec"] = it.second->_audioCodec;
+					sessions.push_back(session);
+				}
+			}
+			j["code"] = 0;
+			j["msg"] = "ok";
+			j["result"] = sessions;
+			SendHttpRsp(sock.get(), j.dump());
+		}
 	} else {
 		MsHttpMsg rsp;
 		rsp.m_version = rtcMsg->httpMsg.m_version;
