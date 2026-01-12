@@ -1,6 +1,7 @@
 #include "MsReactor.h"
 #include "MsLog.h"
 #include "MsTimer.h"
+#include <thread>
 
 MsReactor::MsReactor(int type, int id) : m_index(0), m_type(type), m_id(id), m_exit(false) {
 	m_efd = epoll_create(1);
@@ -50,7 +51,7 @@ void MsReactor::DelTimer(int id) { MsTimer::Instance()->DelTimer(id); }
 
 void MsReactor::ResetTimer(int id) { MsTimer::Instance()->ResetTimer(id); }
 
-void MsReactor::Run() {
+void MsReactor::RegistToManager() {
 	MsReactorMgr::Instance()->Regist(shared_from_this());
 
 	shared_ptr<MsSocket> eventfd = make_shared<MsSocket>(m_eventfd);
@@ -58,6 +59,12 @@ void MsReactor::Run() {
 	shared_ptr<MsEvent> msEvent = make_shared<MsEvent>(eventfd, MS_FD_READ, evtHandler);
 
 	this->AddEvent(msEvent);
+}
+
+void MsReactor::Run() {
+	this->RegistToManager();
+	std::thread worker(&MsReactor::Wait, shared_from_this());
+	worker.detach();
 }
 
 void MsReactor::Exit() {

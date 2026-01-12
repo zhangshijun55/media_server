@@ -52,13 +52,13 @@ private:
 	int m_seqID = 0;
 };
 
-class MsRtspSink : public MsMeidaSink,
+class MsRtspSink : public MsMediaSink,
                    public MsIRtspServer,
                    public enable_shared_from_this<MsRtspSink> {
 public:
 	MsRtspSink(const std::string &type, const std::string &streamID, int sinkID,
 	           std::shared_ptr<MsSocket> sock, MsRtspMsg &descb)
-	    : MsMeidaSink(type, streamID, sinkID), m_sock(sock), m_descb(descb) {}
+	    : MsMediaSink(type, streamID, sinkID), m_sock(sock), m_descb(descb) {}
 
 	int HandleSetup(MsRtspMsg &msg, shared_ptr<MsEvent> evt) override;
 	int HandlePlay(MsRtspMsg &msg, shared_ptr<MsEvent> evt) override;
@@ -76,16 +76,25 @@ public:
 private:
 	int WriteBuffer(const uint8_t *buf, int buf_size, int channel);
 	void ReleaseResources();
-	void ActiveClose();
+	void SinkActiveClose();
 
 private:
-	bool m_error = false;
 	bool m_playing = false;
 
 	string m_session;
 	MsRtspMsg m_descb;
 	std::mutex m_queDataMutex;
 	std::queue<SData> m_queData;
+	std::queue<AVPacket *> m_queAudioPkts;
+
+	bool m_streamReady = false;
+	bool m_error = false;
+	bool m_firstVideo = true;
+	bool m_firstAudio = true;
+	int64_t m_firstVideoPts = 0;
+	int64_t m_firstVideoDts = 0;
+	int64_t m_firstAudioPts = 0;
+	int64_t m_firstAudioDts = 0;
 
 	// because rtp mux fmt ctx only support one stream,
 	// so need two ctx for audio and video

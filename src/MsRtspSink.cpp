@@ -8,7 +8,7 @@
 class MsRtspHandler : public MsEventHandler {
 public:
 	MsRtspHandler(shared_ptr<MsReactor> reactor, shared_ptr<MsIRtspServer> iServer)
-	    : m_reactor(reactor), m_iServer(iServer), m_bufSize(64 * 1024), m_bufOff(0) {
+	    : m_reactor(reactor), m_iServer(iServer), m_bufSize(DEF_BUF_SIZE), m_bufOff(0) {
 		m_buf = (char *)malloc(m_bufSize);
 	}
 
@@ -136,7 +136,7 @@ private:
 };
 
 void MsRtspServer::Run() {
-	MsReactor::Run();
+	this->RegistToManager();
 
 	MsConfig *config = MsConfig::Instance();
 
@@ -209,25 +209,18 @@ int MsRtspServer::HandleDescribe(MsRtspMsg &msg, shared_ptr<MsEvent> evt) {
 		std::string streamID = s[2];
 		std::string format = "rtsp";
 
-		std::shared_ptr<MsMeidaSink> sink =
+		std::shared_ptr<MsMediaSink> sink =
 		    std::make_shared<MsRtspSink>(format, streamID, ++m_seqID, evt->GetSharedSocket(), msg);
 
 		std::shared_ptr<MsMediaSource> source =
-		    MsResManager::GetInstance().GetMediaSource(streamID);
+		    MsResManager::GetInstance().GetOrCreateMediaSource(s[1], streamID, "", sink);
 
-		if (source) {
-			source->AddSink(sink);
-		} else {
-			source = MsSourceFactory::CreateLiveSource(streamID);
-			if (!source) {
-				MS_LOG_WARN("create source failed for stream: %s", streamID.c_str());
-				rsp.m_status = "404";
-				rsp.m_reason = "Not Found";
-				SendRtspMsg(rsp, evt->GetSocket());
-				return -1;
-			}
-			source->AddSink(sink);
-			source->Work();
+		if (!source) {
+			MS_LOG_WARN("create source failed for stream: %s", streamID.c_str());
+			rsp.m_status = "404";
+			rsp.m_reason = "Not Found";
+			SendRtspMsg(rsp, evt->GetSocket());
+			return -1;
 		}
 
 		this->DelEvent(evt);
@@ -245,8 +238,12 @@ int MsRtspServer::HandleDescribe(MsRtspMsg &msg, shared_ptr<MsEvent> evt) {
 		std::string filename = s[3];
 		std::string format = "rtsp";
 
+		std::shared_ptr<MsMediaSink> sink =
+		    std::make_shared<MsRtspSink>(format, streamID, ++m_seqID, evt->GetSharedSocket(), msg);
+
 		// check media source exists
-		auto source = MsResManager::GetInstance().GetMediaSource(streamID);
+		auto source =
+		    MsResManager::GetInstance().GetOrCreateMediaSource(s[1], streamID, filename, sink);
 		if (source) {
 			MS_LOG_WARN("vod source already exists for stream: %s", streamID.c_str());
 			rsp.m_status = "403";
@@ -255,10 +252,6 @@ int MsRtspServer::HandleDescribe(MsRtspMsg &msg, shared_ptr<MsEvent> evt) {
 			return -1;
 		}
 
-		std::shared_ptr<MsMeidaSink> sink =
-		    std::make_shared<MsRtspSink>(format, streamID, ++m_seqID, evt->GetSharedSocket(), msg);
-
-		source = MsSourceFactory::CreateVodSource(streamID, filename);
 		if (!source) {
 			MS_LOG_WARN("create VOD source failed for stream: %s", streamID.c_str());
 			rsp.m_status = "404";
@@ -266,8 +259,6 @@ int MsRtspServer::HandleDescribe(MsRtspMsg &msg, shared_ptr<MsEvent> evt) {
 			SendRtspMsg(rsp, evt->GetSocket());
 			return -1;
 		}
-		source->AddSink(sink);
-		source->Work();
 
 		this->DelEvent(evt);
 		return 0;
@@ -284,8 +275,12 @@ int MsRtspServer::HandleDescribe(MsRtspMsg &msg, shared_ptr<MsEvent> evt) {
 		std::string streamInfo = s[3];
 		std::string format = "rtsp";
 
+		std::shared_ptr<MsMediaSink> sink =
+		    std::make_shared<MsRtspSink>(format, streamID, ++m_seqID, evt->GetSharedSocket(), msg);
+
 		// check media source exists
-		auto source = MsResManager::GetInstance().GetMediaSource(streamID);
+		auto source =
+		    MsResManager::GetInstance().GetOrCreateMediaSource(s[1], streamID, streamInfo, sink);
 		if (source) {
 			MS_LOG_WARN("gbvod source already exists for stream: %s", streamID.c_str());
 			rsp.m_status = "403";
@@ -294,10 +289,6 @@ int MsRtspServer::HandleDescribe(MsRtspMsg &msg, shared_ptr<MsEvent> evt) {
 			return -1;
 		}
 
-		std::shared_ptr<MsMeidaSink> sink =
-		    std::make_shared<MsRtspSink>(format, streamID, ++m_seqID, evt->GetSharedSocket(), msg);
-
-		source = MsSourceFactory::CreateGbvodSource(streamID, streamInfo);
 		if (!source) {
 			MS_LOG_WARN("create GBVOD source failed for stream: %s", streamID.c_str());
 			rsp.m_status = "404";
@@ -305,8 +296,6 @@ int MsRtspServer::HandleDescribe(MsRtspMsg &msg, shared_ptr<MsEvent> evt) {
 			SendRtspMsg(rsp, evt->GetSocket());
 			return -1;
 		}
-		source->AddSink(sink);
-		source->Work();
 
 		this->DelEvent(evt);
 		return 0;
@@ -404,7 +393,7 @@ int MsRtspSink::HandleTeardown(MsRtspMsg &msg, shared_ptr<MsEvent> evt) {
 	rsp.Dump(data);
 
 	this->WriteBuffer((const uint8_t *)data.c_str(), data.size(), -1);
-	this->ActiveClose();
+	this->SinkActiveClose();
 	return 0;
 }
 
@@ -439,7 +428,7 @@ void MsRtspSink::OnStreamInfo(AVStream *video, int videoIdx, AVStream *audio, in
 	if (m_error || !video)
 		return;
 
-	MsMeidaSink::OnStreamInfo(video, videoIdx, audio, audioIdx);
+	MsMediaSink::OnStreamInfo(video, videoIdx, audio, audioIdx);
 	int buf_size = 2048;
 	int ret;
 	shared_ptr<MsEventHandler> handler;
@@ -447,13 +436,7 @@ void MsRtspSink::OnStreamInfo(AVStream *video, int videoIdx, AVStream *audio, in
 	MsRtspMsg rsp;
 	AVDictionary *opts = nullptr;
 
-	auto source = MsResManager::GetInstance().GetMediaSource(m_streamID);
-	if (!source) {
-		MS_LOG_ERROR("source not found for streamID:%s", m_streamID.c_str());
-		goto err;
-	}
-
-	m_reactor = dynamic_pointer_cast<MsReactor>(source);
+	m_reactor = MsReactorMgr::Instance()->GetReactor(MS_COMMON_REACTOR, 1);
 	if (!m_reactor) {
 		MS_LOG_ERROR("reactor not found for streamID:%s", m_streamID.c_str());
 		goto err;
@@ -585,6 +568,7 @@ void MsRtspSink::OnStreamInfo(AVStream *video, int videoIdx, AVStream *audio, in
 			goto err;
 		}
 	}
+	m_streamReady = true;
 
 	rsp.m_version = m_descb.m_version;
 	rsp.m_status = "200";
@@ -609,33 +593,114 @@ void MsRtspSink::OnSourceClose() {
 }
 
 void MsRtspSink::OnStreamPacket(AVPacket *pkt) {
-	if (!m_fmtCtx || !m_video || m_error) {
+	if (!m_streamReady || m_error) {
 		return;
 	}
-	int ret;
 
+	int ret;
 	AVFormatContext *fmtCtx = pkt->stream_index == m_videoIdx ? m_fmtCtx : m_fmtCtxAudio;
 	AVStream *outSt = pkt->stream_index == m_videoIdx ? m_outVideo : m_outAudio;
 	AVStream *inSt = pkt->stream_index == m_videoIdx ? m_video : m_audio;
 	int outIdx = pkt->stream_index == m_videoIdx ? m_outVideoIdx : m_outAudioIdx;
 	int inIdx = pkt->stream_index;
+	int64_t orig_pts = pkt->pts;
+	int64_t orig_dts = pkt->dts;
+
+	// drop non-key video frame at the beginning, how about audio?
+	if (inIdx == m_videoIdx) {
+		if (m_firstVideo) {
+			if (!(pkt->flags & AV_PKT_FLAG_KEY)) {
+				return;
+			}
+		}
+	} else {
+		// drop audio frames until first video frame arrived
+		// TODO: may cause audio loss, need better solution
+		// buffer audio pkts
+		if (m_firstVideo) {
+			AVPacket *apkt = av_packet_clone(pkt);
+			m_queAudioPkts.push(apkt);
+			return;
+		}
+	}
 
 	av_packet_rescale_ts(pkt, inSt->time_base, outSt->time_base);
 	pkt->pos = -1;
 	pkt->stream_index = outIdx;
 
-	ret = av_write_frame(fmtCtx, pkt);
-	if (ret < 0) {
-		MS_LOG_ERROR("Error writing frame to rtsp sink, video: %d ret:%d",
-		             pkt->stream_index == m_videoIdx, ret);
+	if (pkt->pts == AV_NOPTS_VALUE) {
+		MS_LOG_WARN("pkt pts is AV_NOPTS_VALUE, streamID:%s, sinkID:%d codec:%d "
+		            "pts:%ld dts:%ld size:%d",
+		            m_streamID.c_str(), m_sinkID, inSt->codecpar->codec_id, pkt->pts, pkt->dts,
+		            pkt->size);
+		MS_LOG_INFO("ori pts:%ld dts:%ld, in timebase %d/%d, out timebase %d/%d", orig_pts,
+		            orig_dts, inSt->time_base.num, inSt->time_base.den, outSt->time_base.num,
+		            outSt->time_base.den);
 	}
 
-	av_packet_rescale_ts(pkt, outSt->time_base, inSt->time_base);
+	if (inIdx == m_videoIdx) {
+		if (m_firstVideo) {
+			m_firstVideo = false;
+			m_firstVideoPts = pkt->pts;
+			m_firstVideoDts = pkt->dts;
+		}
+
+		pkt->pts -= m_firstVideoPts;
+		if (pkt->dts != AV_NOPTS_VALUE && m_firstVideoDts != AV_NOPTS_VALUE) {
+			pkt->dts -= m_firstVideoDts;
+		}
+	} else {
+		if (m_firstAudio) {
+			m_firstAudio = false;
+			m_firstAudioPts = pkt->pts;
+			m_firstAudioDts = pkt->dts;
+		}
+
+		pkt->pts -= m_firstAudioPts;
+		if (pkt->dts != AV_NOPTS_VALUE && m_firstAudioDts != AV_NOPTS_VALUE) {
+			pkt->dts -= m_firstAudioDts;
+		}
+	}
+
+	ret = av_write_frame(fmtCtx, pkt);
+	if (ret < 0) {
+		MS_LOG_ERROR("Error writing frame to HTTP sink, ret:%d %s", ret, av_err2str(ret));
+		MS_LOG_INFO("streamID:%s, sinkID:%d codec:%d pts:%ld dts:%ld size:%d", m_streamID.c_str(),
+		            m_sinkID, inSt->codecpar->codec_id, pkt->pts, pkt->dts, pkt->size);
+		MS_LOG_INFO("ori pts:%ld dts:%ld, in timebase %d/%d, out timebase %d/%d", orig_pts,
+		            orig_dts, inSt->time_base.num, inSt->time_base.den, outSt->time_base.num,
+		            outSt->time_base.den);
+		MS_LOG_INFO("streamID:%s, sinkID:%d  1st vpts:%ld vdts:%ld apts:%ld adts:%ld",
+		            m_streamID.c_str(), m_sinkID, m_firstVideoPts, m_firstVideoDts, m_firstAudioPts,
+		            m_firstAudioDts);
+	}
+
+	while (m_queAudioPkts.size() && inIdx == m_videoIdx) {
+		AVPacket *apkt = m_queAudioPkts.front();
+		m_queAudioPkts.pop();
+		int64_t ori_ms = orig_pts * 1000L * inSt->time_base.num / inSt->time_base.den;
+		int64_t apkt_ms = apkt->pts * 1000L * m_audio->time_base.num / m_audio->time_base.den;
+		int64_t diff = abs(ori_ms - apkt_ms);
+
+		if (diff < 131) { // allow max 131ms diff
+			// send pkt
+			this->OnStreamPacket(apkt);
+		} else {
+			// drop pkt
+			MS_LOG_WARN("treamID:%s, sinkID:%d drop buffered audio pkt, ori_ms:%lld "
+			            "apkt_ms:%lld diff:%lld",
+			            m_streamID.c_str(), m_sinkID, ori_ms, apkt_ms, diff);
+		}
+		av_packet_free(&apkt);
+	}
+
+	pkt->pts = orig_pts;
+	pkt->dts = orig_dts;
 	pkt->pos = -1;
 	pkt->stream_index = inIdx;
 }
 
-void MsRtspSink::ActiveClose() {
+void MsRtspSink::SinkActiveClose() {
 	m_error = true;
 
 	this->DetachSource();
@@ -671,7 +736,7 @@ void MsRtspSink::OnWriteEvent(shared_ptr<MsEvent> evt) {
 			} else {
 				MS_LOG_INFO("http sink streamID:%s, sinkID:%d err:%d", m_streamID.c_str(), m_sinkID,
 				            MS_LAST_ERROR);
-				this->ActiveClose();
+				this->SinkActiveClose();
 				return;
 			}
 		}
@@ -688,8 +753,9 @@ void MsRtspSink::OnWriteEvent(shared_ptr<MsEvent> evt) {
 	MS_LOG_INFO("rtsp sink streamID:%s, sinkID:%d all data sent", m_streamID.c_str(), m_sinkID);
 }
 
-void MsRtspSink::OnCloseEvent(shared_ptr<MsEvent> evt) { this->ActiveClose(); }
+void MsRtspSink::OnCloseEvent(shared_ptr<MsEvent> evt) { this->SinkActiveClose(); }
 
+// TODO: how to handle passive close gracefully, http stream too
 int MsRtspSink::WriteBuffer(const uint8_t *buf, int buf_size, int channel) {
 	if (m_error)
 		return -1;
@@ -737,6 +803,7 @@ int MsRtspSink::WriteBuffer(const uint8_t *buf, int buf_size, int channel) {
 
 		if (m_sock->BlockSend((const char *)header_buf, 4) < 0) {
 			MS_LOG_ERROR("rtsp sink send header failed");
+			m_error = true;
 			return buf_size;
 		}
 
@@ -773,6 +840,7 @@ int MsRtspSink::WriteBuffer(const uint8_t *buf, int buf_size, int channel) {
 				return buf_size;
 			} else {
 				MS_LOG_INFO("sink %s:%d err:%d", m_type.c_str(), m_sinkID, MS_LAST_ERROR);
+				m_error = true;
 				return buf_size;
 			}
 		}
@@ -785,6 +853,7 @@ void MsRtspSink::ReleaseResources() {
 	if (m_evt && m_reactor) {
 		m_reactor->DelEvent(m_evt);
 		m_evt = nullptr;
+		m_reactor = nullptr;
 	}
 
 	if (m_fmtCtx) {
@@ -816,5 +885,11 @@ void MsRtspSink::ReleaseResources() {
 		SData &sd = m_queData.front();
 		delete[] sd.m_buf;
 		m_queData.pop();
+	}
+
+	while (m_queAudioPkts.size()) {
+		AVPacket *pkt = m_queAudioPkts.front();
+		m_queAudioPkts.pop();
+		av_packet_free(&pkt);
 	}
 }

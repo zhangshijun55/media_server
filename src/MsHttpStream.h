@@ -1,16 +1,16 @@
 #pragma once
-#include "MsHttpHandler.h"
-#include "MsHttpMsg.h"
+#include "MsMsgDef.h"
 #include "MsReactor.h"
 #include <string>
 #include <vector>
 
-class MsHttpStream : public MsIHttpServer {
+class MsHttpStream : public MsReactor {
 public:
-	using MsIHttpServer::MsIHttpServer;
+	using MsReactor::MsReactor;
+	void HandleMsg(MsMsg &msg) override;
 
-	void Run();
-	void HandleHttpReq(shared_ptr<MsEvent> evt, MsHttpMsg &msg, char *body, int len);
+private:
+	void HandleStreamMsg(SHttpTransferMsg *httpMsg);
 
 private:
 	int m_seqID = 0;

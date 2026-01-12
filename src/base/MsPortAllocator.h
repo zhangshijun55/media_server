@@ -7,6 +7,11 @@
 #include <mutex>
 #include <vector>
 
+#if ENABLE_HTTPS
+#include <openssl/err.h>
+#include <openssl/ssl.h>
+#endif
+
 class MsPortAllocator {
 public:
 	MsPortAllocator();
@@ -14,6 +19,10 @@ public:
 	shared_ptr<MsSocket> AllocPort(int type, string &ip, int &port);
 
 	static MsPortAllocator *Instance();
+
+#if ENABLE_HTTPS
+	SSL_CTX *GetSslCtx();
+#endif
 
 private:
 	int m_minPort;

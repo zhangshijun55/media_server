@@ -10,7 +10,10 @@
 #include "MsOsConfig.h"
 #include "MsRtspSink.h"
 #include "MsTimer.h"
-#include <iostream>
+
+#if ENABLE_RTC
+#include "MsRtcServer.h"
+#endif
 
 int main(int argc, char *argv[]) {
 	signal(SIGPIPE, SIG_IGN);
@@ -30,6 +33,9 @@ int main(int argc, char *argv[]) {
 
 	MsDevMgr::Instance()->LoadDevice();
 
+	shared_ptr<MsReactor> commReactor = make_shared<MsReactor>(MS_COMMON_REACTOR, 1);
+	commReactor->Run();
+
 	shared_ptr<MsHttpServer> httpServer = make_shared<MsHttpServer>(MS_HTTP_SERVER, 1);
 	httpServer->Run();
 
@@ -41,6 +47,11 @@ int main(int argc, char *argv[]) {
 
 	shared_ptr<MsHttpStream> hs = make_shared<MsHttpStream>(MS_HTTP_STREAM, 1);
 	hs->Run();
+
+#if ENABLE_RTC
+	shared_ptr<MsRtcServer> rtcServer = make_shared<MsRtcServer>(MS_RTC_SERVER, 1);
+	rtcServer->Run();
+#endif
 
 	printf("media server v1.0.0 running\n");
 

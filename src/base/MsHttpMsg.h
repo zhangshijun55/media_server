@@ -18,6 +18,7 @@ public:
 	MsComHeader m_allowHeader;
 	MsComHeader m_exposeHeader;
 	MsComHeader m_location;
+	MsComHeader m_allowPrivateNetwork;
 };
 
 void SendHttpRsp(MsSocket *sock, const string &rspBody);

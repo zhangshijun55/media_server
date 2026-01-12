@@ -3,8 +3,6 @@
 #include <thread>
 
 void MsRtspSource::Work() {
-	MsMediaSource::Work();
-
 	std::thread worker([this]() { this->OnRun(); });
 	worker.detach();
 }
@@ -14,6 +12,7 @@ void MsRtspSource::OnRun() {
 	AVFormatContext *fmt_ctx = NULL;
 	AVPacket *pkt = NULL;
 	AVDictionary *options = NULL;
+	bool fisrtVideoPkt = true;
 
 	// Add rtsp_transport=tcp option if URL is RTSP
 	if (m_url.find("rtsp://") == 0 || m_url.find("RTSP://") == 0) {
@@ -26,7 +25,7 @@ void MsRtspSource::OnRun() {
 
 	if (ret < 0) {
 		MS_LOG_ERROR("Could not open input url:%s, err:%d", m_url.c_str(), ret);
-		this->ActiveClose();
+		this->SourceActiveClose();
 		return;
 	}
 
@@ -34,7 +33,7 @@ void MsRtspSource::OnRun() {
 	if (ret < 0) {
 		MS_LOG_ERROR("Could not find stream info url:%s, err:%d", m_url.c_str(), ret);
 		avformat_close_input(&fmt_ctx);
-		this->ActiveClose();
+		this->SourceActiveClose();
 		return;
 	}
 
@@ -42,7 +41,7 @@ void MsRtspSource::OnRun() {
 	if (ret < 0) {
 		MS_LOG_ERROR("Could not find video stream in url:%s, err:%d", m_url.c_str(), ret);
 		avformat_close_input(&fmt_ctx);
-		this->ActiveClose();
+		this->SourceActiveClose();
 		return;
 	}
 
@@ -52,7 +51,7 @@ void MsRtspSource::OnRun() {
 	    m_video->codecpar->codec_id != AV_CODEC_ID_H265) {
 		MS_LOG_ERROR("not support codec:%d url:%s", m_video->codecpar->codec_id, m_url.c_str());
 		avformat_close_input(&fmt_ctx);
-		this->ActiveClose();
+		this->SourceActiveClose();
 		return;
 	}
 
@@ -71,6 +70,35 @@ void MsRtspSource::OnRun() {
 	/* read frames from the file */
 	while (av_read_frame(fmt_ctx, pkt) >= 0 && !m_isClosing.load()) {
 		if (pkt->stream_index == m_videoIdx || pkt->stream_index == m_audioIdx) {
+			// log video pts dts
+			// if (pkt->stream_index == m_videoIdx) {
+			// 	MS_LOG_DEBUG(
+			// 	    "video pkt pts:%lld dts:%lld key:%d",
+			// 	    pkt->pts * 1000L * m_video->time_base.num / m_video->time_base.den,
+			// 	    pkt->dts * 1000L * m_video->time_base.num / m_video->time_base.den,
+			// 	    pkt->flags & AV_PKT_FLAG_KEY);
+			// } else if (pkt->stream_index == m_audioIdx) {
+			// 	MS_LOG_DEBUG(
+			// 	    "audio pkt pts:%lld dts:%lld size:%d",
+			// 	    pkt->pts * 1000L * m_audio->time_base.num / m_audio->time_base.den,
+			// 	    pkt->dts * 1000L * m_audio->time_base.num / m_audio->time_base.den,
+			// 	    pkt->size);
+			// }
+
+			if (pkt->stream_index == m_videoIdx) {
+				if (fisrtVideoPkt) {
+					fisrtVideoPkt = false;
+					// TODO: quick fix for some RTSP stream with first pkt pts=dts=AV_NOPTS_VALUE
+					//       need better solution
+					if (pkt->pts == AV_NOPTS_VALUE) {
+						MS_LOG_WARN("first video pkt pts is AV_NOPTS_VALUE, set to 0");
+						pkt->pts = 0;
+						if (pkt->dts == AV_NOPTS_VALUE) {
+							pkt->dts = 0;
+						}
+					}
+				}
+			}
 			this->NotifyStreamPacket(pkt);
 		}
 		av_packet_unref(pkt);
@@ -78,5 +106,5 @@ void MsRtspSource::OnRun() {
 
 	avformat_close_input(&fmt_ctx);
 	av_packet_free(&pkt);
-	this->ActiveClose();
+	this->SourceActiveClose();
 }

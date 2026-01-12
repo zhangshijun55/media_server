@@ -34,11 +34,12 @@
 
 通过包管理器或源码安装以下依赖：
 
-- **C++ 编译器**: 支持 C++14 标准。
+- **C++ 编译器**: 支持 C++17 标准。
 - **CMake**: 版本 3.10 或更高。
-- **FFmpeg**: 需要 `libavcodec`, `libavformat`, 和 `libavutil` 库。
+- **FFmpeg**: 需要 `libavcodec`, `libavformat`, 和 `libavutil` 库。需要版本 7.0 及以上。
 - **SQLite3**: 已包含源码。
 - **TinyXML2**: 已包含源码。
+- **OpenSSL** (可选): 仅在启用 HTTPS 支持时需要。
 
 ## 构建指南
 
@@ -51,6 +52,10 @@
 2. **配置 CMake:**
    ```bash
    cmake ..
+   ```
+   若要启用 HTTPS 支持，请使用:
+   ```bash
+   cmake -DENABLE_HTTPS=1 ..
    ```
 
 3. **编译项目:**
@@ -65,6 +70,15 @@
 配置信息从 JSON 文件加载。输出目录中的 `conf` 文件夹通常包含 `config.json`。服务器将根据此配置设置日志记录、并启动各种服务模块（GB, RTSP, HTTP）。
 
 **注意:** 在启动服务之前，您需要在 `config.json` 中将 `localBindIP` 设置为服务器的 IP 地址。
+
+如果启用了 HTTPS 支持（使用 `-DENABLE_HTTPS=1` 构建），则需要在 `config.json` 中指定 SSL 证书和密钥路径：
+
+```json
+{
+  "sslCertFile": "path/to/cert.pem",
+  "sslKeyFile": "path/to/key.pem"
+}
+```
 
 ## 使用方法
 

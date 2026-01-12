@@ -1,37 +1,38 @@
 #pragma once
 #include "MsCommon.h"
+#include "MsMediaSource.h"
 #include "MsMsgDef.h"
-#include "MsResManager.h"
+#include "MsReactor.h"
+#include "MsRingBuffer.h"
 #include <condition_variable>
 #include <mutex>
 #include <thread>
 
-class MsGbSource : public MsMediaSource {
+class MsGbSource : public MsMediaSource, public MsReactor {
 public:
 	MsGbSource(const std::string &streamID, SGbContext *ctx, int id)
-	    : MsMediaSource(streamID, MS_GB_SOURCE, id), m_ctx(ctx), m_bufSize(64 * 1024),
-	      m_bufReadOff(0), m_bufWriteOff(0) {
-		m_buf = new uint8_t[m_bufSize];
-	}
+	    : MsMediaSource(streamID), MsReactor(MS_GB_SOURCE, id), m_ctx(ctx),
+	      m_ringBuffer(std::make_unique<MsRingBuffer>(DEF_BUF_SIZE)) {}
 
 	~MsGbSource() {
 		if (m_ctx) {
 			delete m_ctx;
 		}
-		if (m_buf) {
-			delete[] m_buf;
-		}
 	}
 
 	void Work() override;
+	shared_ptr<MsMediaSource> GetSharedPtr() override {
+		return dynamic_pointer_cast<MsMediaSource>(shared_from_this());
+	}
+
 	void Exit() override;
 	void HandleMsg(MsMsg &msg) override;
 	void ProcessRtp(uint8_t *buf, int len);
 
-	void ActiveClose() override {
+	void SourceActiveClose() override {
 		m_isClosing.store(true);
 		m_condVar.notify_all();
-		MsMediaSource::ActiveClose();
+		MsMediaSource::SourceActiveClose();
 	}
 
 	void OnSinksEmpty() override {
@@ -51,11 +52,7 @@ private:
 	uint16_t m_seq = 0;
 	int m_payload = 96;
 
-	uint8_t *m_buf;
-	int m_bufSize;
-	int m_bufReadOff;
-	int m_bufWriteOff;
-
+	std::unique_ptr<MsRingBuffer> m_ringBuffer;
 	std::mutex m_mutex;
 	std::condition_variable m_condVar;
 	std::unique_ptr<std::thread> m_psThread;

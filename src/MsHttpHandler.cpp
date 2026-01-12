@@ -105,6 +105,44 @@ void MsHttpHandler::HandleRead(shared_ptr<MsEvent> evt) {
 		}
 
 		MS_LOG_DEBUG("recv:%s", m_buf);
+#if ENABLE_RTC
+		// if msg.m_uri starts with /rtc/, let RtcServer handle it
+		if (msg.m_uri.find("/rtc/") == 0) {
+			SHttpTransferMsg *rtcMsg = new SHttpTransferMsg();
+
+			rtcMsg->httpMsg = msg;
+			rtcMsg->sock = evt->GetSharedSocket();
+			rtcMsg->body = string(p2, cntLen);
+			MsMsg msMsg;
+			msMsg.m_msgID = MS_RTC_MSG;
+			msMsg.m_ptr = rtcMsg;
+			msMsg.m_dstID = 1;
+			msMsg.m_dstType = MS_RTC_SERVER;
+			m_server->PostMsg(msMsg);
+
+			m_server->DelEvent(evt);
+			return;
+		}
+#endif
+
+		// if uri start with /live, /vod, /gbvod, let HttpStream handle it
+		if (msg.m_uri.find("/live") == 0 || msg.m_uri.find("/vod") == 0 ||
+		    msg.m_uri.find("/gbvod") == 0) {
+			SHttpTransferMsg *httpMsg = new SHttpTransferMsg();
+			httpMsg->httpMsg = msg;
+			httpMsg->sock = evt->GetSharedSocket();
+			httpMsg->body = string(p2, cntLen);
+			MsMsg msMsg;
+			msMsg.m_msgID = MS_HTTP_STREAM_MSG;
+			msMsg.m_ptr = httpMsg;
+			msMsg.m_dstID = 1;
+			msMsg.m_dstType = MS_HTTP_STREAM;
+			m_server->PostMsg(msMsg);
+
+			m_server->DelEvent(evt);
+			return;
+		}
+
 		m_server->HandleHttpReq(evt, msg, p2, cntLen);
 
 		p2 += cntLen;

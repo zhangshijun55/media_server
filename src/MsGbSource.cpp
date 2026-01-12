@@ -11,7 +11,7 @@ extern "C" {
 class MsGbRtpHandler : public MsEventHandler {
 public:
 	MsGbRtpHandler(shared_ptr<MsGbSource> source)
-	    : m_bufSize(64 * 1024), m_bufOff(0), m_source(source) {
+	    : m_bufSize(DEF_BUF_SIZE), m_bufOff(0), m_source(source) {
 		m_buf = new char[m_bufSize];
 	}
 
@@ -81,7 +81,7 @@ public:
 	void HandleClose(shared_ptr<MsEvent> evt) override {
 		// Handle RTP packet close
 		m_source->DelEvent(evt);
-		m_source->ActiveClose();
+		m_source->SourceActiveClose();
 	}
 
 private:
@@ -124,7 +124,7 @@ public:
 		// Handle RTP packet close
 		if (m_source) {
 			m_source->DelEvent(evt);
-			m_source->ActiveClose();
+			m_source->SourceActiveClose();
 			m_source = nullptr;
 		}
 	}
@@ -146,7 +146,7 @@ public:
 	void HandleClose(shared_ptr<MsEvent> evt) override {
 		if (m_source) {
 			m_source->DelEvent(evt);
-			m_source->ActiveClose();
+			m_source->SourceActiveClose();
 			m_source = nullptr;
 		}
 	}
@@ -170,7 +170,7 @@ private:
 };
 
 void MsGbSource::Work() {
-	MsMediaSource::Work();
+	MsReactor::Run();
 
 	std::thread worker([this]() { this->OnRun(); });
 	worker.detach();
@@ -198,7 +198,7 @@ void MsGbSource::Exit() {
 		m_rtpSock.reset();
 	}
 
-	MsMediaSource::Exit();
+	MsReactor::Exit();
 }
 
 void MsGbSource::HandleMsg(MsMsg &msg) {
@@ -303,14 +303,14 @@ void MsGbSource::HandleMsg(MsMsg &msg) {
 			MS_LOG_WARN("gb source invite:%s call:%s transport:%d sdp:%s", m_ctx->gbID.c_str(),
 			            m_ctx->gbCallID.c_str(), xtransport, p);
 
-			this->ActiveClose();
+			this->SourceActiveClose();
 		} else { // Failed
-			this->ActiveClose();
+			this->SourceActiveClose();
 		}
 	} break;
 
 	default:
-		MsMediaSource::HandleMsg(msg);
+		MsReactor::HandleMsg(msg);
 		break;
 	}
 }
@@ -457,66 +457,39 @@ void MsGbSource::PsParseThread() {
 	}
 
 end:
-	avformat_close_input(&fmt_ctx);
-
-	/* note: the internal buffer could have changed, and be != avio_ctx_buffer */
-	if (avio_ctx)
-		av_freep(&avio_ctx->buffer);
-	avio_context_free(&avio_ctx);
+	if (fmt_ctx) {
+		if (fmt_ctx->pb) {
+			avio_flush(fmt_ctx->pb);
+			av_freep(&fmt_ctx->pb->buffer);
+			avio_context_free(&fmt_ctx->pb);
+		}
+		avformat_free_context(fmt_ctx);
+		fmt_ctx = nullptr;
+	}
 	av_packet_free(&pkt);
-	this->ActiveClose();
+	this->SourceActiveClose();
 }
 
 int MsGbSource::ReadBuffer(uint8_t *buf, int buf_size) {
 	std::unique_lock<std::mutex> lock(m_mutex);
-	m_condVar.wait(lock,
-	               [this]() { return m_bufWriteOff - m_bufReadOff > 0 || m_isClosing.load(); });
+	m_condVar.wait(lock, [this]() { return m_ringBuffer->size() > 0 || m_isClosing.load(); });
 
 	if (m_isClosing.load()) {
 		return AVERROR_EOF;
 	}
 
-	if (m_bufWriteOff - m_bufReadOff <= 0) {
+	if (m_ringBuffer->size() <= 0) {
 		return AVERROR(EAGAIN);
 	}
 
-	int toRead = buf_size;
-	int available = m_bufWriteOff - m_bufReadOff;
-	if (toRead > available) {
-		toRead = available;
-	}
-
-	memcpy(buf, m_buf + m_bufReadOff, toRead);
-	m_bufReadOff += toRead;
-	return toRead;
+	return m_ringBuffer->read((char *)buf, buf_size);
 }
 
+// TODO: test ring buffer
 void MsGbSource::WriteBuffer(uint8_t *buf, int len) {
-	std::lock_guard<std::mutex> lock(m_mutex);
-	if (m_bufWriteOff + len > m_bufSize) {
-		// if left size can fit new data, move data to head
-		if (m_bufSize - m_bufWriteOff + m_bufReadOff >= len) {
-			memmove(m_buf, m_buf + m_bufReadOff, m_bufWriteOff - m_bufReadOff);
-			m_bufWriteOff -= m_bufReadOff;
-			m_bufReadOff = 0;
-		} else {
-			// need expand buffer
-			int newSize = m_bufSize * 2;
-			while (m_bufWriteOff + len > newSize) {
-				newSize *= 2;
-			}
-			uint8_t *newBuf = new uint8_t[newSize];
-			memcpy(newBuf, m_buf + m_bufReadOff, m_bufWriteOff - m_bufReadOff);
-			delete[] m_buf;
-			m_buf = newBuf;
-			m_bufSize = newSize;
-			m_bufWriteOff -= m_bufReadOff;
-			m_bufReadOff = 0;
-		}
-	}
-
-	memcpy(m_buf + m_bufWriteOff, buf, len);
-	m_bufWriteOff += len;
+	std::unique_lock<std::mutex> lock(m_mutex);
+	m_ringBuffer->write(buf, len);
+	lock.unlock();
 	m_condVar.notify_one();
 }
 

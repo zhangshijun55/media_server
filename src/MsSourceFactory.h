@@ -1,5 +1,5 @@
 #pragma once
-#include "MsResManager.h"
+#include "MsMediaSource.h"
 
 class MsSourceFactory {
 public:

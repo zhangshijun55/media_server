@@ -3,6 +3,7 @@
 #include "MsDevMgr.h"
 #include "MsLog.h"
 #include "MsMsgDef.h"
+#include "MsPortAllocator.h"
 #include "MsResManager.h"
 #include "MsSourceFactory.h"
 #include "nlohmann/json.hpp"
@@ -10,57 +11,24 @@
 
 using json = nlohmann::json;
 
-void MsHttpStream::Run() {
-	MsReactor::Run();
-
-	std::string httpIp = MsConfig::Instance()->GetConfigStr("httpIP");
-	int httpPort = MsConfig::Instance()->GetConfigInt("httpStreamPort");
-
-	MsInetAddr bindAddr(AF_INET, httpIp, httpPort);
-	shared_ptr<MsSocket> sock = make_shared<MsSocket>(AF_INET, SOCK_STREAM, 0);
-
-	if (0 != sock->Bind(bindAddr)) {
-		MS_LOG_ERROR("http bind %s:%d err:%d", httpIp.c_str(), httpPort, MS_LAST_ERROR);
-		this->Exit();
-		return;
-	}
-
-	if (0 != sock->Listen()) {
-		MS_LOG_ERROR("http listen %s:%d err:%d", httpIp.c_str(), httpPort, MS_LAST_ERROR);
-		this->Exit();
-		return;
-	}
-
-	MS_LOG_INFO("http stream listen:%s:%d", httpIp.c_str(), httpPort);
-
-	shared_ptr<MsEventHandler> evtHandler =
-	    make_shared<MsHttpAcceptHandler>(dynamic_pointer_cast<MsIHttpServer>(shared_from_this()));
-	shared_ptr<MsEvent> msEvent = make_shared<MsEvent>(sock, MS_FD_ACCEPT, evtHandler);
-
-	this->AddEvent(msEvent);
-
-	std::thread worker(&MsReactor::Wait, shared_from_this());
-	worker.detach();
-}
-
-class MsHttpSink : public MsMeidaSink, public MsEventHandler {
+class MsHttpSink : public MsMediaSink, public MsEventHandler {
 public:
 	MsHttpSink(const std::string &type, const std::string &streamID, int sinkID,
 	           std::shared_ptr<MsSocket> sock)
-	    : MsMeidaSink(type, streamID, sinkID), m_sock(sock) {}
+	    : MsMediaSink(type, streamID, sinkID), m_sock(sock) {}
 
 	void HandleRead(shared_ptr<MsEvent> evt) override {
 		char buf[512];
 		int ret = m_sock->Recv(buf, 512);
 		if (ret == 0) {
-			this->ActiveClose();
+			this->SinkActiveClose();
 		}
 	}
 
 	void HandleClose(shared_ptr<MsEvent> evt) override {
 		MS_LOG_ERROR("http sink socket closed, streamID:%s, sinkID:%d", m_streamID.c_str(),
 		             m_sinkID);
-		this->ActiveClose();
+		this->SinkActiveClose();
 	}
 
 	void HandleWrite(shared_ptr<MsEvent> evt) override {
@@ -92,7 +60,7 @@ public:
 				} else {
 					MS_LOG_INFO("http sink streamID:%s, sinkID:%d err:%d", m_streamID.c_str(),
 					            m_sinkID, MS_LAST_ERROR);
-					this->ActiveClose();
+					this->SinkActiveClose();
 					return;
 				}
 			}
@@ -116,17 +84,11 @@ public:
 	void OnStreamInfo(AVStream *video, int videoIdx, AVStream *audio, int audioIdx) override {
 		if (m_error || !video)
 			return;
-		MsMeidaSink::OnStreamInfo(video, videoIdx, audio, audioIdx);
+		MsMediaSink::OnStreamInfo(video, videoIdx, audio, audioIdx);
 		int buf_size = 2048;
 		int ret;
 
-		auto source = MsResManager::GetInstance().GetMediaSource(m_streamID);
-		if (!source) {
-			MS_LOG_ERROR("source not found for streamID:%s", m_streamID.c_str());
-			goto err;
-		}
-
-		m_reactor = dynamic_pointer_cast<MsReactor>(source);
+		m_reactor = MsReactorMgr::Instance()->GetReactor(MS_COMMON_REACTOR, 1);
 		if (!m_reactor) {
 			MS_LOG_ERROR("reactor not found for streamID:%s", m_streamID.c_str());
 			goto err;
@@ -182,6 +144,7 @@ public:
 			goto err;
 		}
 
+		m_streamReady = true;
 		return;
 
 	err:
@@ -237,6 +200,7 @@ public:
 		} else {
 			if (m_sock->BlockSend((const char *)chunk_header, header_len) < 0) {
 				MS_LOG_ERROR("http sink send chunk header failed");
+				this->PassiveClose();
 				return buf_size;
 			}
 
@@ -274,12 +238,14 @@ public:
 					return buf_size;
 				} else {
 					MS_LOG_INFO("sink %s:%d err:%d", m_type.c_str(), m_sinkID, MS_LAST_ERROR);
+					this->PassiveClose();
 					return buf_size;
 				}
 			}
 
 			if (m_sock->BlockSend("\r\n", 2) < 0) {
 				MS_LOG_ERROR("http sink send chunk tail failed");
+				this->PassiveClose();
 				return buf_size;
 			}
 		}
@@ -287,11 +253,18 @@ public:
 		return buf_size;
 	}
 
-	void ActiveClose() {
+	void SinkActiveClose() {
 		m_error = true;
 
 		this->DetachSource();
 		this->ReleaseResources();
+	}
+
+	// TODO: need fix
+	void PassiveClose() {
+		m_error = true;
+		// this->DetachSourceNoLock();
+		// this->ReleaseResources();
 	}
 
 	void ReleaseResources() {
@@ -300,18 +273,18 @@ public:
 		if (m_evt && m_reactor) {
 			m_reactor->DelEvent(m_evt);
 			m_evt = nullptr;
+			m_reactor = nullptr;
 		}
 
 		if (m_fmtCtx) {
 			av_write_trailer(m_fmtCtx);
+			if (m_fmtCtx->pb) {
+				avio_flush(m_fmtCtx->pb);
+				av_freep(&m_fmtCtx->pb->buffer);
+				avio_context_free(&m_fmtCtx->pb);
+			}
 			avformat_free_context(m_fmtCtx);
 			m_fmtCtx = nullptr;
-		}
-
-		if (m_pb) {
-			av_free(m_pb->buffer);
-			av_free(m_pb);
-			m_pb = nullptr;
 		}
 	}
 
@@ -320,28 +293,114 @@ public:
 		this->ReleaseResources();
 	}
 
+	// TODO: firefox has high chance stall when Multiplexing flv streams
+	//       but ts streams seem ok, need further investigate
+	//       chromium ok for both flv and ts
 	void OnStreamPacket(AVPacket *pkt) override {
-		if (!m_fmtCtx || !m_video || m_error) {
+		if (!m_streamReady || m_error) {
 			return;
 		}
-		int ret;
 
+		int ret;
 		AVStream *outSt = pkt->stream_index == m_videoIdx ? m_outVideo : m_outAudio;
 		AVStream *inSt = pkt->stream_index == m_videoIdx ? m_video : m_audio;
 		int outIdx = pkt->stream_index == m_videoIdx ? m_outVideoIdx : m_outAudioIdx;
 		int inIdx = pkt->stream_index;
+		int64_t orig_pts = pkt->pts;
+		int64_t orig_dts = pkt->dts;
+
+		// drop non-key video frame at the beginning, how about audio?
+		if (inIdx == m_videoIdx) {
+			if (m_firstVideo) {
+				if (!(pkt->flags & AV_PKT_FLAG_KEY)) {
+					return;
+				}
+			}
+		} else {
+			// drop audio frames until first video frame arrived
+			// TODO: may cause audio loss, need better solution
+			// buffer audio pkts
+			if (m_firstVideo) {
+				AVPacket *apkt = av_packet_clone(pkt);
+				m_queAudioPkts.push(apkt);
+				return;
+			}
+		}
 
 		/* copy packet */
 		av_packet_rescale_ts(pkt, inSt->time_base, outSt->time_base);
 		pkt->pos = -1;
 		pkt->stream_index = outIdx;
 
-		ret = av_write_frame(m_fmtCtx, pkt);
-		if (ret < 0) {
-			MS_LOG_ERROR("Error writing frame to HTTP sink, ret:%d", ret);
+		if (pkt->pts == AV_NOPTS_VALUE) {
+			MS_LOG_WARN("pkt pts is AV_NOPTS_VALUE, streamID:%s, sinkID:%d codec:%d "
+			            "pts:%ld dts:%ld size:%d",
+			            m_streamID.c_str(), m_sinkID, inSt->codecpar->codec_id, pkt->pts, pkt->dts,
+			            pkt->size);
+			MS_LOG_INFO("ori pts:%ld dts:%ld, in timebase %d/%d, out timebase %d/%d", orig_pts,
+			            orig_dts, inSt->time_base.num, inSt->time_base.den, outSt->time_base.num,
+			            outSt->time_base.den);
 		}
 
-		av_packet_rescale_ts(pkt, outSt->time_base, inSt->time_base);
+		if (inIdx == m_videoIdx) {
+			if (m_firstVideo) {
+				m_firstVideo = false;
+				m_firstVideoPts = pkt->pts;
+				m_firstVideoDts = pkt->dts;
+			}
+
+			pkt->pts -= m_firstVideoPts;
+			if (pkt->dts != AV_NOPTS_VALUE && m_firstVideoDts != AV_NOPTS_VALUE) {
+				pkt->dts -= m_firstVideoDts;
+			}
+		} else {
+			if (m_firstAudio) {
+				m_firstAudio = false;
+				m_firstAudioPts = pkt->pts;
+				m_firstAudioDts = pkt->dts;
+			}
+
+			pkt->pts -= m_firstAudioPts;
+			if (pkt->dts != AV_NOPTS_VALUE && m_firstAudioDts != AV_NOPTS_VALUE) {
+				pkt->dts -= m_firstAudioDts;
+			}
+		}
+
+		ret = av_write_frame(m_fmtCtx, pkt);
+		if (ret < 0) {
+			MS_LOG_ERROR("Error writing frame to HTTP sink, ret:%d %s", ret, av_err2str(ret));
+			MS_LOG_INFO("streamID:%s, sinkID:%d codec:%d pts:%ld dts:%ld size:%d",
+			            m_streamID.c_str(), m_sinkID, inSt->codecpar->codec_id, pkt->pts, pkt->dts,
+			            pkt->size);
+			MS_LOG_INFO("ori pts:%ld dts:%ld, in timebase %d/%d, out timebase %d/%d", orig_pts,
+			            orig_dts, inSt->time_base.num, inSt->time_base.den, outSt->time_base.num,
+			            outSt->time_base.den);
+			MS_LOG_INFO("streamID:%s, sinkID:%d  1st vpts:%ld vdts:%ld apts:%ld adts:%ld",
+			            m_streamID.c_str(), m_sinkID, m_firstVideoPts, m_firstVideoDts,
+			            m_firstAudioPts, m_firstAudioDts);
+		}
+
+		while (m_queAudioPkts.size() && inIdx == m_videoIdx) {
+			AVPacket *apkt = m_queAudioPkts.front();
+			m_queAudioPkts.pop();
+			int64_t ori_ms = orig_pts * 1000L * inSt->time_base.num / inSt->time_base.den;
+			int64_t apkt_ms = apkt->pts * 1000L * m_audio->time_base.num / m_audio->time_base.den;
+			int64_t diff = abs(ori_ms - apkt_ms);
+
+			if (diff < 131) { // allow max 131ms diff
+				// send pkt
+				this->OnStreamPacket(apkt);
+			} else {
+				// drop pkt
+				MS_LOG_WARN("treamID:%s, sinkID:%d drop buffered audio pkt, ori_ms:%lld "
+				            "apkt_ms:%lld diff:%lld",
+				            m_streamID.c_str(), m_sinkID, ori_ms, apkt_ms, diff);
+			}
+			av_packet_free(&apkt);
+		}
+
+		pkt->pts = orig_pts;
+		pkt->dts = orig_dts;
 		pkt->pos = -1;
 		pkt->stream_index = inIdx;
 	}
@@ -353,10 +412,25 @@ private:
 			delete[] sd.m_buf;
 			m_queData.pop();
 		}
+		while (m_queAudioPkts.size()) {
+			AVPacket *pkt = m_queAudioPkts.front();
+			m_queAudioPkts.pop();
+			av_packet_free(&pkt);
+		}
 	}
+
+	std::atomic_bool m_streamReady{false};
+	bool m_error = false;
+	bool m_firstVideo = true;
+	bool m_firstAudio = true;
+	int64_t m_firstVideoPts = 0;
+	int64_t m_firstVideoDts = 0;
+	int64_t m_firstAudioPts = 0;
+	int64_t m_firstAudioDts = 0;
 
 	std::mutex m_queDataMutex;
 	std::queue<SData> m_queData;
+	std::queue<AVPacket *> m_queAudioPkts;
 	std::shared_ptr<MsSocket> m_sock;
 	std::shared_ptr<MsReactor> m_reactor;
 	std::shared_ptr<MsEvent> m_evt;
@@ -367,11 +441,24 @@ private:
 	int m_outVideoIdx = 0;
 	int m_outAudioIdx = 1;
 	bool m_firstPacket = true;
-	bool m_error = false;
 };
 
-void MsHttpStream::HandleHttpReq(shared_ptr<MsEvent> evt, MsHttpMsg &msg, char *body, int len) {
-	MS_LOG_DEBUG("http stream req uri:%s body:%s", msg.m_uri.c_str(), body);
+void MsHttpStream::HandleMsg(MsMsg &msg) {
+	switch (msg.m_msgID) {
+	case MS_HTTP_STREAM_MSG: {
+		SHttpTransferMsg *httpMsg = static_cast<SHttpTransferMsg *>(msg.m_ptr);
+		this->HandleStreamMsg(httpMsg);
+		delete httpMsg;
+	} break;
+	default:
+		MsReactor::HandleMsg(msg);
+		break;
+	}
+}
+
+void MsHttpStream::HandleStreamMsg(SHttpTransferMsg *httpMsg) {
+	MsHttpMsg &msg = httpMsg->httpMsg;
+	shared_ptr<MsSocket> &sock = httpMsg->sock;
 
 	std::vector<std::string> s = SplitString(msg.m_uri, "/");
 	if (s.size() < 3) {
@@ -379,7 +466,7 @@ void MsHttpStream::HandleHttpReq(shared_ptr<MsEvent> evt, MsHttpMsg &msg, char *
 		json rsp;
 		rsp["code"] = 1;
 		rsp["msg"] = "invalid uri";
-		SendHttpRsp(evt->GetSocket(), rsp.dump());
+		SendHttpRsp(sock.get(), rsp.dump());
 		return;
 	}
 
@@ -393,39 +480,32 @@ void MsHttpStream::HandleHttpReq(shared_ptr<MsEvent> evt, MsHttpMsg &msg, char *
 			json rsp;
 			rsp["code"] = 1;
 			rsp["msg"] = "unsupported format";
-			SendHttpRsp(evt->GetSocket(), rsp.dump());
+			SendHttpRsp(sock.get(), rsp.dump());
 			return;
 		}
 
-		std::shared_ptr<MsMeidaSink> sink =
-		    std::make_shared<MsHttpSink>(format, streamID, ++m_seqID, evt->GetSharedSocket());
+		std::shared_ptr<MsMediaSink> sink =
+		    std::make_shared<MsHttpSink>(format, streamID, ++m_seqID, sock);
 
 		std::shared_ptr<MsMediaSource> source =
-		    MsResManager::GetInstance().GetMediaSource(streamID);
-		if (source) {
-			source->AddSink(sink);
-		} else {
-			source = MsSourceFactory::CreateLiveSource(streamID);
-			if (!source) {
-				MS_LOG_WARN("create source failed for stream: %s", streamID.c_str());
-				json rsp;
-				rsp["code"] = 1;
-				rsp["msg"] = "create source failed";
-				SendHttpRsp(evt->GetSocket(), rsp.dump());
-				return;
-			}
-			source->AddSink(sink);
-			source->Work();
+		    MsResManager::GetInstance().GetOrCreateMediaSource(s[1], streamID, "", sink);
+
+		if (!source) {
+			MS_LOG_WARN("create source failed for stream: %s", streamID.c_str());
+			json rsp;
+			rsp["code"] = 1;
+			rsp["msg"] = "create source failed";
+			SendHttpRsp(sock.get(), rsp.dump());
+			return;
 		}
 
-		this->DelEvent(evt);
 	} else if (s[1] == "vod") {
 		if (s.size() < 5) {
 			MS_LOG_WARN("invalid vod uri:%s", msg.m_uri.c_str());
 			json rsp;
 			rsp["code"] = 1;
 			rsp["msg"] = "invalid uri";
-			SendHttpRsp(evt->GetSocket(), rsp.dump());
+			SendHttpRsp(sock.get(), rsp.dump());
 			return;
 		}
 
@@ -433,40 +513,28 @@ void MsHttpStream::HandleHttpReq(shared_ptr<MsEvent> evt, MsHttpMsg &msg, char *
 		std::string format = s[3];
 		std::string filename = s[4];
 
+		std::shared_ptr<MsMediaSink> sink =
+		    std::make_shared<MsHttpSink>(format, streamID, ++m_seqID, sock);
+
 		std::shared_ptr<MsMediaSource> source =
-		    MsResManager::GetInstance().GetMediaSource(streamID);
-		if (source) {
-			MS_LOG_WARN("vod source already exists for stream: %s", streamID.c_str());
-			json rsp;
-			rsp["code"] = 1;
-			rsp["msg"] = "vod source already exists";
-			SendHttpRsp(evt->GetSocket(), rsp.dump());
-			return;
-		}
+		    MsResManager::GetInstance().GetOrCreateMediaSource(s[1], streamID, filename, sink);
 
-		std::shared_ptr<MsMeidaSink> sink =
-		    std::make_shared<MsHttpSink>(format, streamID, ++m_seqID, evt->GetSharedSocket());
-
-		source = MsSourceFactory::CreateVodSource(streamID, filename);
 		if (!source) {
 			MS_LOG_WARN("create source failed for stream: %s", streamID.c_str());
 			json rsp;
 			rsp["code"] = 1;
 			rsp["msg"] = "create source failed";
-			SendHttpRsp(evt->GetSocket(), rsp.dump());
+			SendHttpRsp(sock.get(), rsp.dump());
 			return;
 		}
-		source->AddSink(sink);
-		source->Work();
 
-		this->DelEvent(evt);
 	} else if (s[1] == "gbvod") {
 		if (s.size() < 4) {
 			MS_LOG_WARN("invalid gbvod uri:%s", msg.m_uri.c_str());
 			json rsp;
 			rsp["code"] = 1;
 			rsp["msg"] = "invalid uri";
-			SendHttpRsp(evt->GetSocket(), rsp.dump());
+			SendHttpRsp(sock.get(), rsp.dump());
 			return;
 		}
 
@@ -480,42 +548,30 @@ void MsHttpStream::HandleHttpReq(shared_ptr<MsEvent> evt, MsHttpMsg &msg, char *
 			json rsp;
 			rsp["code"] = 1;
 			rsp["msg"] = "unsupported format";
-			SendHttpRsp(evt->GetSocket(), rsp.dump());
+			SendHttpRsp(sock.get(), rsp.dump());
 			return;
 		}
+
+		std::shared_ptr<MsMediaSink> sink =
+		    std::make_shared<MsHttpSink>(format, streamID, ++m_seqID, sock);
 
 		std::shared_ptr<MsMediaSource> source =
-		    MsResManager::GetInstance().GetMediaSource(streamID);
-		if (source) {
-			MS_LOG_WARN("gbvod source already exists for stream: %s", streamID.c_str());
-			json rsp;
-			rsp["code"] = 1;
-			rsp["msg"] = "gbvod source already exists";
-			SendHttpRsp(evt->GetSocket(), rsp.dump());
-			return;
-		}
+		    MsResManager::GetInstance().GetOrCreateMediaSource(s[1], streamID, streamInfo, sink);
 
-		std::shared_ptr<MsMeidaSink> sink =
-		    std::make_shared<MsHttpSink>(format, streamID, ++m_seqID, evt->GetSharedSocket());
-
-		source = MsSourceFactory::CreateGbvodSource(streamID, streamInfo);
 		if (!source) {
 			MS_LOG_WARN("create source failed for stream: %s", streamID.c_str());
 			json rsp;
 			rsp["code"] = 1;
 			rsp["msg"] = "create source failed";
-			SendHttpRsp(evt->GetSocket(), rsp.dump());
+			SendHttpRsp(sock.get(), rsp.dump());
 			return;
 		}
-		source->AddSink(sink);
-		source->Work();
 
-		this->DelEvent(evt);
 	} else {
 		MS_LOG_WARN("unsupported uri:%s", msg.m_uri.c_str());
 		json rsp;
 		rsp["code"] = 1;
 		rsp["msg"] = "unsupported uri";
-		SendHttpRsp(evt->GetSocket(), rsp.dump());
+		SendHttpRsp(sock.get(), rsp.dump());
 	}
 }

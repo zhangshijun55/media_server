@@ -9,8 +9,6 @@ extern "C" {
 }
 
 void MsFileSource::Work() {
-	MsMediaSource::Work();
-
 	std::thread worker([this]() { this->OnRun(); });
 	worker.detach();
 }
@@ -27,7 +25,7 @@ void MsFileSource::OnRun() {
 
 	if (ret < 0) {
 		MS_LOG_ERROR("Could not open input url:%s, err:%d", m_filename.c_str(), ret);
-		this->ActiveClose();
+		this->SourceActiveClose();
 		return;
 	}
 
@@ -35,7 +33,7 @@ void MsFileSource::OnRun() {
 	if (ret < 0) {
 		MS_LOG_ERROR("Could not find stream info url:%s, err:%d", m_filename.c_str(), ret);
 		avformat_close_input(&fmt_ctx);
-		this->ActiveClose();
+		this->SourceActiveClose();
 		return;
 	}
 
@@ -43,7 +41,7 @@ void MsFileSource::OnRun() {
 	if (ret < 0) {
 		MS_LOG_ERROR("Could not find video stream in url:%s, err:%d", m_filename.c_str(), ret);
 		avformat_close_input(&fmt_ctx);
-		this->ActiveClose();
+		this->SourceActiveClose();
 		return;
 	}
 
@@ -54,7 +52,7 @@ void MsFileSource::OnRun() {
 		MS_LOG_ERROR("not support codec:%d url:%s", m_video->codecpar->codec_id,
 		             m_filename.c_str());
 		avformat_close_input(&fmt_ctx);
-		this->ActiveClose();
+		this->SourceActiveClose();
 		return;
 	}
 
@@ -114,5 +112,5 @@ void MsFileSource::OnRun() {
 
 	avformat_close_input(&fmt_ctx);
 	av_packet_free(&pkt);
-	this->ActiveClose();
+	this->SourceActiveClose();
 }

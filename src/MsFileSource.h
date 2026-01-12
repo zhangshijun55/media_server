@@ -1,13 +1,16 @@
 #pragma once
+#include "MsMediaSource.h"
 #include "MsMsgDef.h"
-#include "MsResManager.h"
 
-class MsFileSource : public MsMediaSource {
+class MsFileSource : public MsMediaSource, public std::enable_shared_from_this<MsFileSource> {
 public:
-	MsFileSource(const std::string &streamID, const std::string &filename, int id)
-	    : MsMediaSource(streamID, MS_FILE_SOURCE, id), m_filename(filename) {}
+	MsFileSource(const std::string &streamID, const std::string &filename)
+	    : MsMediaSource(streamID), m_filename(filename) {}
 
 	void Work() override;
+	shared_ptr<MsMediaSource> GetSharedPtr() override {
+		return dynamic_pointer_cast<MsMediaSource>(shared_from_this());
+	}
 
 private:
 	void OnRun();

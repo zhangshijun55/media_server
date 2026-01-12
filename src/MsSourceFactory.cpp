@@ -24,8 +24,7 @@ std::shared_ptr<MsMediaSource> MsSourceFactory::CreateLiveSource(const std::stri
 			return nullptr;
 		}
 
-		std::lock_guard<std::mutex> lk(m_mutex);
-		return std::make_shared<MsRtspSource>(streamID, url, m_seqID++);
+		return std::make_shared<MsRtspSource>(streamID, url);
 	} break;
 
 	case GB_DEV: {
@@ -55,8 +54,7 @@ std::shared_ptr<MsMediaSource> MsSourceFactory::CreateVodSource(const std::strin
 		return nullptr;
 	}
 
-	std::lock_guard<std::mutex> lk(m_mutex);
-	return std::make_shared<MsFileSource>(streamID, fn, m_seqID++);
+	return std::make_shared<MsFileSource>(streamID, fn);
 }
 
 std::shared_ptr<MsMediaSource> MsSourceFactory::CreateGbvodSource(const std::string &streamID,

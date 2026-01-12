@@ -63,3 +63,36 @@ MsPortAllocator *MsPortAllocator::Instance() {
 		}
 	}
 }
+
+#if ENABLE_HTTPS
+SSL_CTX *MsPortAllocator::GetSslCtx() {
+	static SSL_CTX *ctx = nullptr;
+	std::lock_guard<std::mutex> lock(MsPortAllocator::m_mutex);
+	if (!ctx) {
+		SSL_load_error_strings();
+		OpenSSL_add_ssl_algorithms();
+
+		const SSL_METHOD *method = TLS_server_method();
+		ctx = SSL_CTX_new(method);
+		if (!ctx) {
+			perror("Unable to create SSL context");
+			ERR_print_errors_fp(stderr);
+			return nullptr;
+		}
+
+		string cert_file = MsConfig::Instance()->GetConfigStr("sslCertFile");
+		string key_file = MsConfig::Instance()->GetConfigStr("sslKeyFile");
+
+		if (SSL_CTX_use_certificate_file(ctx, cert_file.c_str(), SSL_FILETYPE_PEM) <= 0) {
+			ERR_print_errors_fp(stderr);
+			return nullptr;
+		}
+
+		if (SSL_CTX_use_PrivateKey_file(ctx, key_file.c_str(), SSL_FILETYPE_PEM) <= 0) {
+			ERR_print_errors_fp(stderr);
+			return nullptr;
+		}
+	}
+	return ctx;
+}
+#endif

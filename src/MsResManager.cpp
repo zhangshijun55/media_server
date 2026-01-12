@@ -1,4 +1,5 @@
 #include "MsResManager.h"
+#include "MsSourceFactory.h"
 #include <algorithm>
 #include <thread>
 
@@ -47,106 +48,61 @@ std::shared_ptr<MsMediaSource> MsResManager::GetMediaSource(const std::string &k
 	return nullptr;
 }
 
-void MsMediaSource::AddSink(std::shared_ptr<MsMeidaSink> sink) {
-	if (!sink || m_isClosing.load()) {
-		return;
-	}
-
-	std::lock_guard<std::mutex> lock(m_sinkMutex);
-	if (m_sinks.empty()) {
-		MsResManager::GetInstance().AddMediaSource(
-		    m_streamID, std::dynamic_pointer_cast<MsMediaSource>(shared_from_this()));
-	}
-
-	m_sinks.push_back(sink);
-	if (m_video || m_audio) {
-		sink->OnStreamInfo(m_video, m_videoIdx, m_audio, m_audioIdx);
-	}
-}
-
-void MsMediaSource::RemoveSink(const std::string &type, int sinkID) {
-	std::unique_lock<std::mutex> lock(m_sinkMutex);
-	this->RemoveSinkNoLock(type, sinkID);
-}
-
-void MsMediaSource::RemoveSinkNoLock(const std::string &type, int sinkID) {
-	for (auto it = m_sinks.begin(); it != m_sinks.end(); ++it) {
-		if ((*it)->m_type == type && (*it)->m_sinkID == sinkID) {
-			m_sinks.erase(it);
-			break;
+shared_ptr<MsMediaSource> MsResManager::GetOrCreateMediaSource(const std::string &type,
+                                                               const std::string &streamID,
+                                                               const std::string &streamInfo,
+                                                               shared_ptr<MsMediaSink> &sink) {
+	std::shared_ptr<MsMediaSource> source;
+	if (type == "live") {
+		source = this->GetMediaSource(streamID);
+		if (source) {
+			source->AddSink(sink);
+			return source;
+		} else {
+			source = MsSourceFactory::CreateLiveSource(streamID);
+			if (!source) {
+				MS_LOG_WARN("create source failed for stream: %s", streamID.c_str());
+				return nullptr;
+			} else {
+				source->AddSink(sink);
+				source->Work();
+				return source;
+			}
 		}
-	}
-
-	if (m_sinks.empty()) {
-		this->OnSinksEmpty();
-	}
-}
-
-void MsMediaSource::NotifyStreamInfo() {
-	std::lock_guard<std::mutex> lock(m_sinkMutex);
-	for (auto &sink : m_sinks) {
-		if (sink) {
-			sink->OnStreamInfo(m_video, m_videoIdx, m_audio, m_audioIdx);
+	} else if (type == "vod") {
+		source = this->GetMediaSource(streamID);
+		if (source) {
+			MS_LOG_WARN("vod source already exists for stream: %s", streamID.c_str());
+			return nullptr;
 		}
-	}
-}
 
-void MsMediaSource::NotifySourceClose() {
-	std::lock_guard<std::mutex> lock(m_sinkMutex);
-	for (auto &sink : m_sinks) {
-		if (sink) {
-			sink->OnSourceClose();
+		source = MsSourceFactory::CreateVodSource(streamID, streamInfo);
+		if (!source) {
+			MS_LOG_WARN("create source failed for stream: %s", streamID.c_str());
+			return nullptr;
+		} else {
+			source->AddSink(sink);
+			source->Work();
+			return source;
 		}
-	}
-	m_sinks.clear();
-}
-
-void MsMediaSource::NotifyStreamPacket(AVPacket *pkt) {
-	std::lock_guard<std::mutex> lock(m_sinkMutex);
-	for (auto &sink : m_sinks) {
-		if (sink) {
-			sink->OnStreamPacket(pkt);
+	} else if (type == "gbvod") {
+		source = this->GetMediaSource(streamID);
+		if (source) {
+			MS_LOG_WARN("gbvod source already exists for stream: %s", streamID.c_str());
+			return nullptr;
 		}
+
+		source = MsSourceFactory::CreateGbvodSource(streamID, streamInfo);
+		if (!source) {
+			MS_LOG_WARN("create source failed for stream: %s", streamID.c_str());
+			return nullptr;
+		} else {
+			source->AddSink(sink);
+			source->Work();
+			return source;
+		}
+	} else {
+		MS_LOG_WARN("unsupported source type: %s", type.c_str());
+		return nullptr;
 	}
-	if (m_sinks.empty()) {
-		this->OnSinksEmpty();
-	}
-}
-
-void MsMediaSource::ActiveClose() {
-	m_isClosing.store(true);
-	MsResManager::GetInstance().RemoveMediaSource(m_streamID);
-	this->NotifySourceClose();
-
-	this->PostExit();
-}
-
-void MsMediaSource::OnSinksEmpty() {
-	m_isClosing.store(true);
-	this->PostExit();
-}
-
-void MsMediaSource::Work() {
-	MsReactor::Run();
-	std::thread reactorWorker([reactor = shared_from_this()]() { reactor->Wait(); });
-	reactorWorker.detach();
-}
-
-void MsMeidaSink::DetachSource() {
-	auto source = MsResManager::GetInstance().GetMediaSource(m_streamID);
-	if (source)
-		source->RemoveSink(m_type, m_sinkID);
-}
-
-void MsMeidaSink::DetachSourceNoLock() {
-	auto source = MsResManager::GetInstance().GetMediaSource(m_streamID);
-	if (source)
-		source->RemoveSinkNoLock(m_type, m_sinkID);
-}
-
-void MsMeidaSink::OnStreamInfo(AVStream *video, int videoIdx, AVStream *audio, int audioIdx) {
-	m_video = video;
-	m_videoIdx = videoIdx;
-	m_audio = audio;
-	m_audioIdx = audioIdx;
 }

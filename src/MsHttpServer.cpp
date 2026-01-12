@@ -12,6 +12,10 @@ extern "C" {
 #include "libavformat/avformat.h"
 }
 
+#if ENABLE_HTTPS
+#include "MsSslSock.h"
+#endif
+
 using httpHandle = void (MsHttpServer::*)(shared_ptr<MsEvent>, MsHttpMsg &, char *, int);
 
 map<int, shared_ptr<SMediaNode>> MsHttpServer::m_mediaNode;
@@ -72,7 +76,8 @@ static void JsonToDev(shared_ptr<MsGbDevice> dev, int type, json &j) {
 MsHttpServer::MsHttpServer(int type, int id) : MsIHttpServer(type, id) {}
 
 void MsHttpServer::Run() {
-	MsReactor::Run();
+	this->RegistToManager();
+
 	MsConfig *config = MsConfig::Instance();
 
 	string httpIp = config->GetConfigStr("httpIP");
@@ -84,7 +89,18 @@ void MsHttpServer::Run() {
 	this->AddTimer(msg, 30, true);
 
 	MsInetAddr bindAddr(AF_INET, httpIp, httpPort);
+
+#if ENABLE_HTTPS
+	SSL_CTX *sslCtx = MsPortAllocator::Instance()->GetSslCtx();
+	if (!sslCtx) {
+		MS_LOG_ERROR("get ssl ctx failed");
+		this->Exit();
+		return;
+	}
+	shared_ptr<MsSocket> sock = make_shared<MsSslSock>(AF_INET, SOCK_STREAM, 0, sslCtx);
+#else
 	shared_ptr<MsSocket> sock = make_shared<MsSocket>(AF_INET, SOCK_STREAM, 0);
+#endif
 
 	if (0 != sock->Bind(bindAddr)) {
 		MS_LOG_ERROR("http bind %s:%d err:%d", httpIp.c_str(), httpPort, MS_LAST_ERROR);
@@ -499,16 +515,22 @@ void MsHttpServer::FileUrl(shared_ptr<MsEvent> evt, MsHttpMsg &msg, char *body, 
 		ip = mn->httpMediaIP;
 	}
 
+#if ENABLE_HTTPS
+	string protocol = "https";
+#else
+	string protocol = "http";
+#endif
+
 	char bb[512];
 	string rid = GenRandStr(16);
 	sprintf(bb, "rtsp://%s:%d/vod/%s/%s", ip.c_str(), mn->rtspPort, rid.c_str(), filename.c_str());
 	r["rtspUrl"] = bb;
 
-	sprintf(bb, "http://%s:%d/vod/%s/ts/%s", ip.c_str(), mn->httpStreamPort, rid.c_str(),
+	sprintf(bb, "%s://%s:%d/vod/%s/ts/%s", protocol.c_str(), ip.c_str(), mn->httpPort, rid.c_str(),
 	        filename.c_str());
 	r["httpTsUrl"] = bb;
 
-	sprintf(bb, "http://%s:%d/vod/%s/flv/%s", ip.c_str(), mn->httpStreamPort, rid.c_str(),
+	sprintf(bb, "%s://%s:%d/vod/%s/flv/%s", protocol.c_str(), ip.c_str(), mn->httpPort, rid.c_str(),
 	        filename.c_str());
 	r["httpFlvUrl"] = bb;
 
@@ -587,7 +609,6 @@ void MsHttpServer::OnNodeTimer() {
 		mn = it->second;
 	}
 
-	mn->httpStreamPort = config->GetConfigInt("httpStreamPort");
 	mn->rtspPort = config->GetConfigInt("rtspPort");
 	mn->httpPort = config->GetConfigInt("httpPort");
 	mn->httpMediaIP = config->GetConfigStr("httpMediaIP");
@@ -989,13 +1010,21 @@ void MsHttpServer::GetLiveUrl(shared_ptr<MsEvent> evt, MsHttpMsg &msg, char *bod
 		ip = mn->httpMediaIP;
 	}
 
+#if ENABLE_HTTPS
+	string protocol = "https";
+#else
+	string protocol = "http";
+#endif
+
 	sprintf(bb, "rtsp://%s:%d/live/%s", ip.c_str(), mn->rtspPort, deviceId.c_str());
 	r["rtspUrl"] = bb;
 
-	sprintf(bb, "http://%s:%d/live/%s.ts", ip.c_str(), mn->httpStreamPort, deviceId.c_str());
+	sprintf(bb, "%s://%s:%d/live/%s.ts", protocol.c_str(), ip.c_str(), mn->httpPort,
+	        deviceId.c_str());
 	r["httpTsUrl"] = bb;
 
-	sprintf(bb, "http://%s:%d/live/%s.flv", ip.c_str(), mn->httpStreamPort, deviceId.c_str());
+	sprintf(bb, "%s://%s:%d/live/%s.flv", protocol.c_str(), ip.c_str(), mn->httpPort,
+	        deviceId.c_str());
 	r["httpFlvUrl"] = bb;
 
 	jRsp["code"] = 0;
@@ -1054,17 +1083,23 @@ void MsHttpServer::GetPlaybackUrl(shared_ptr<MsEvent> evt, MsHttpMsg &msg, char 
 			ip = mn->httpMediaIP;
 		}
 
+#if ENABLE_HTTPS
+		string protocol = "https";
+#else
+		string protocol = "http";
+#endif
+
 		json r;
 		sprintf(bb, "rtsp://%s:%d/gbvod/%s/%s", ip.c_str(), mn->rtspPort, rid.c_str(),
 		        keyId.c_str());
 		r["rtspUrl"] = bb;
 
-		sprintf(bb, "http://%s:%d/gbvod/%s/%s.ts", ip.c_str(), mn->httpStreamPort, rid.c_str(),
-		        keyId.c_str());
+		sprintf(bb, "%s://%s:%d/gbvod/%s/%s.ts", protocol.c_str(), ip.c_str(), mn->httpPort,
+		        rid.c_str(), keyId.c_str());
 		r["httpTsUrl"] = bb;
 
-		sprintf(bb, "http://%s:%d/gbvod/%s/%s.flv", ip.c_str(), mn->httpStreamPort, rid.c_str(),
-		        keyId.c_str());
+		sprintf(bb, "%s://%s:%d/gbvod/%s/%s.flv", protocol.c_str(), ip.c_str(), mn->httpPort,
+		        rid.c_str(), keyId.c_str());
 		r["httpFlvUrl"] = bb;
 
 		jRsp["code"] = 0;
@@ -1112,7 +1147,6 @@ void MsHttpServer::GetMediaNode(shared_ptr<MsEvent> evt, MsHttpMsg &msg, char *b
 		json nd;
 		nd["nodeIP"] = nn.second->nodeIp;
 		nd["httpPort"] = nn.second->httpPort;
-		nd["httpStreamPort"] = nn.second->httpStreamPort;
 		nd["rtspPort"] = nn.second->rtspPort;
 		nd["httpMediaIP"] = nn.second->httpMediaIP;
 		j["result"].emplace_back(nd);

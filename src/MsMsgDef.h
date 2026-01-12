@@ -26,18 +26,18 @@ enum MS_MSG_ID {
 	MS_GB_SERVER_HANDLER_CLOSE,
 	MS_GET_REGIST_DOMAIN,
 	MS_STOP_INVITE_CALL,
+	MS_HTTP_STREAM_MSG,
 	MS_RTC_MSG,
 	MS_RTC_PEER_CLOSED,
+	MS_RTC_DEL_SOCK,
 };
 
 enum MS_SERVICE_TYPE {
 	MS_HTTP_SERVER = 1,
-	MS_HTTP_CLIENT,
+	MS_COMMON_REACTOR,
 	MS_GB_SERVER,
 	MS_GB_SOURCE,
-	MS_FILE_SOURCE,
 	MS_HTTP_STREAM,
-	MS_RTSP_SOURCE,
 	MS_RTSP_SERVER,
 	MS_RTC_SERVER,
 };
@@ -58,13 +58,13 @@ struct SGbContext {
 struct SData {
 	uint8_t *m_buf;
 	int m_len;
+	int m_capacity;
 };
 
 struct SMediaNode {
 	int node_id;
 	int idle;
 	int m_lastUsed;
-	int httpStreamPort;
 	int rtspPort;
 	int httpPort;
 	string httpMediaIP;
@@ -79,8 +79,8 @@ public:
 	int m_timeout;
 };
 
-struct SRtcMsg {
+struct SHttpTransferMsg {
 	MsHttpMsg httpMsg;
-	string sdp;
+	string body;
 	shared_ptr<MsSocket> sock;
 };

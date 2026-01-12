@@ -4,12 +4,13 @@
     "gbServerPort": 5080,
     "httpIP": "0.0.0.0",
     "httpPort": 26080,
-    "httpStreamPort": 26088,
     "localBindIP": "127.0.0.1",
     "logLevel": 4,
     "netMap": null,
     "queryRecordType": "all",
     "rtpTransport": 2,
     "rtspIP": "0.0.0.0",
-    "rtspPort": 26544
+    "rtspPort": 26544,
+    "sslCertFile": "conf/cert.pem",
+    "sslKeyFile": "conf/key.pem"
 }

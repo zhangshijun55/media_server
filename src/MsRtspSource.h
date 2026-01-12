@@ -1,13 +1,16 @@
 #pragma once
+#include "MsMediaSource.h"
 #include "MsMsgDef.h"
-#include "MsResManager.h"
 
-class MsRtspSource : public MsMediaSource {
+class MsRtspSource : public MsMediaSource, public std::enable_shared_from_this<MsRtspSource> {
 public:
-	MsRtspSource(const std::string &streamID, const std::string &url, int id)
-	    : MsMediaSource(streamID, MS_RTSP_SOURCE, id), m_url(url) {}
+	MsRtspSource(const std::string &streamID, const std::string &url)
+	    : MsMediaSource(streamID), m_url(url) {}
 
 	void Work() override;
+	shared_ptr<MsMediaSource> GetSharedPtr() override {
+		return dynamic_pointer_cast<MsMediaSource>(shared_from_this());
+	}
 
 private:
 	void OnRun();

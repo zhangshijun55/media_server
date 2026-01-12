@@ -21,6 +21,8 @@ public:
 	void DelTimer(int id);
 	void ResetTimer(int id);
 
+	void RegistToManager();
+
 	virtual void Run();
 	virtual void Exit();
 	virtual void HandleMsg(MsMsg &msg);

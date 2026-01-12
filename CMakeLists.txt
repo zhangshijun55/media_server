@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.10)
 project(media_server)
 
 # C++ standard
-set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # Set output directory for build binary
@@ -11,6 +11,9 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/../output)
 # Compiler flags
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -D_LINUX")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g")
+
+option(ENABLE_HTTPS "Enable https support" OFF)
+option(ENABLE_RTC "Enable webrtc support" OFF)
 
 # Include directories
 include_directories(${CMAKE_SOURCE_DIR}/src)
@@ -39,6 +42,8 @@ set(MAIN_SOURCES
     src/MsHttpStream.cpp
     src/MsOnvifHandler.cpp
     src/MsResManager.cpp
+    src/MsMediaSink.cpp
+    src/MsMediaSource.cpp
     src/MsSourceFactory.cpp
     src/MsRtspSource.cpp
     src/MsRtspSink.cpp
@@ -63,7 +68,16 @@ set(BASE_SOURCES
     src/base/MsSipMsg.cpp
     src/base/MsSocket.cpp
     src/base/MsTimer.cpp
+    src/base/MsRingBuffer.cpp
 )
+
+if(ENABLE_RTC)
+    list(APPEND MAIN_SOURCES src/MsRtcServer.cpp)
+endif()
+
+if(ENABLE_HTTPS)
+    list(APPEND BASE_SOURCES src/base/MsSslSock.cpp)
+endif()
 
 # Create executable
 add_executable(media_server ${MAIN_SOURCES} ${BASE_SOURCES})
@@ -78,3 +92,15 @@ target_link_libraries(media_server PRIVATE
     PkgConfig::AVFORMAT
     PkgConfig::AVUTIL
 )
+
+if(ENABLE_HTTPS)
+    find_package(OpenSSL REQUIRED)
+    target_compile_definitions(media_server PRIVATE ENABLE_HTTPS=1)
+    target_link_libraries(media_server PRIVATE OpenSSL::SSL OpenSSL::Crypto)
+endif()
+
+if(ENABLE_RTC)
+    find_package(LibDataChannel REQUIRED)
+    target_compile_definitions(media_server PRIVATE ENABLE_RTC=1)
+    target_link_libraries(media_server PRIVATE LibDataChannel::LibDataChannel)
+endif()

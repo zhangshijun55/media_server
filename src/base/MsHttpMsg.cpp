@@ -7,7 +7,7 @@ MsHttpMsg::MsHttpMsg()
     : m_connection("Connection"), m_host("Host"), m_allowOrigin("Access-Control-Allow-Origin"),
       m_allowMethod("Access-Control-Allow-Methods"), m_allowHeader("Access-Control-Allow-Headers"),
       m_exposeHeader("Access-Control-Expose-Headers"), m_transport("Transfer-Encoding"),
-      m_location("Location") {}
+      m_location("Location"), m_allowPrivateNetwork("Access-Control-Allow-Private-Network") {}
 
 void MsHttpMsg::Dump(string &rsp) {
 	if (m_status.size()) {
@@ -27,6 +27,7 @@ void MsHttpMsg::Dump(string &rsp) {
 	m_allowMethod.Dump(rsp);
 	m_allowHeader.Dump(rsp);
 	m_exposeHeader.Dump(rsp);
+	m_allowPrivateNetwork.Dump(rsp);
 
 	rsp += "\r\n";
 
@@ -117,11 +118,13 @@ void SendHttpRspEx(MsSocket *sock, MsHttpMsg &rsp) {
 	if (!rsp.m_contentType.m_exist) {
 		rsp.m_contentType.SetValue("application/json; charset=UTF-8");
 	}
+	rsp.m_allowPrivateNetwork.SetValue("true");
 	rsp.m_allowOrigin.SetValue("*");
 	rsp.m_allowMethod.SetValue("GET, POST, OPTIONS, DELETE");
 	rsp.m_allowHeader.SetValue(
 	    "DNT,X-Mx-ReqToken,Keep-Alive,User-Agent,X-Requested-With,If-Modified-"
-	    "Since,Cache-Control,Content-Type,Authorization,Location");
+	    "Since,Cache-Control,Content-Type,Authorization,Location,access-control-request-private-"
+	    "network,content-type");
 
 	SendHttpRsp(sock, rsp);
 }

@@ -169,7 +169,7 @@ int MsSocket::Send(const char *buf, int len, int *psend) {
 	int ret = 0;
 	int snd = 0;
 
-	while (len) {
+	while (len > 0) {
 		ret = send(m_sock, buf, len, 0);
 		if (ret < 0) {
 			if (MS_LAST_ERROR == EINTR) {
@@ -177,14 +177,17 @@ int MsSocket::Send(const char *buf, int len, int *psend) {
 			} else if (MS_LAST_ERROR == EAGAIN) {
 				ret = MS_TRY_AGAIN;
 				break;
+			} else {
+				MS_LOG_ERROR("send socket err:%d", MS_LAST_ERROR);
+				break;
 			}
-
-			MS_LOG_ERROR("send socket err:%d", MS_LAST_ERROR);
-			break;
 		}
-		buf += ret;
-		len -= ret;
-		snd += ret;
+
+		if (ret > 0) {
+			buf += ret;
+			len -= ret;
+			snd += ret;
+		}
 	}
 
 	if (psend) {

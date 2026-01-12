@@ -34,11 +34,12 @@ A  media server implementation supporting GB/T 28181, RTSP, and HTTP streaming p
 
 The project requires the following dependencies:
 
-- **C++ Compiler**: Supports C++14 standard.
+- **C++ Compiler**: Supports C++17 standard.
 - **CMake**: Version 3.10 or higher.
-- **FFmpeg**: Requires `libavcodec`, `libavformat`, and `libavutil`.
+- **FFmpeg**: Requires `libavcodec`, `libavformat`, and `libavutil`. Version 7.0 and above.
 - **SQLite3**: Source included.
 - **TinyXML2**: Source included.
+- **OpenSSL** (Optional): Required if HTTPS support is enabled.
 
 
 ## Build Instructions
@@ -53,6 +54,10 @@ The project requires the following dependencies:
    ```bash
    cmake ..
    ```
+   To enable HTTPS support, use:
+   ```bash
+   cmake -DENABLE_HTTPS=1 ..
+   ```
 
 3. **Build the project:**
    ```bash
@@ -66,7 +71,14 @@ The executable `media_server` will be generated in the `output` directory.
 Configuration is loaded from a JSON file. The `conf` directory in the output folder typically contains `config.json`. The server sets up logging, and starts various service modules (GB, RTSP, HTTP) based on this configuration.
 
 **Note:** You need to set \`localBindIP\` in \`config.json\` to the server's IP address before starting the service.
+If HTTPS support is enabled (built with `-DENABLE_HTTPS=1`), you need to specify the SSL certificate and key paths in `config.json`:
 
+```json
+{
+  "sslCertFile": "path/to/cert.pem",
+  "sslKeyFile": "path/to/key.pem"
+}
+```
 ## Usage
 
 You can use the provided scripts to start and stop the service:
