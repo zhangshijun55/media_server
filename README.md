@@ -25,6 +25,7 @@ A  media server implementation supporting GB/T 28181, RTSP, and HTTP streaming p
 - **RTSP Server**: Supports Real Time Streaming Protocol (RTSP) for media streaming.
 - **HTTP Server**: Built-in HTTP server for management and signaling.
 - **HTTP Streaming**: Support for media streaming over HTTP.
+- **WebRTC WHIP Support**: Support for WebRTC WHIP protocol.
 - **ONVIF Support**: Includes handling for ONVIF protocol.
 - **Device Management**: Manages connected devices.
 - **Database Integration**: Uses SQLite for data persistence.
@@ -36,10 +37,11 @@ The project requires the following dependencies:
 
 - **C++ Compiler**: Supports C++17 standard.
 - **CMake**: Version 3.10 or higher.
-- **FFmpeg**: Requires `libavcodec`, `libavformat`, and `libavutil`. Version 7.0 and above.
+- **FFmpeg**: Requires `libavcodec`, `libavformat`, and `libavutil`. Recommended version 8.0 and above.
 - **SQLite3**: Source included.
 - **TinyXML2**: Source included.
 - **OpenSSL** (Optional): Required if HTTPS support is enabled.
+- **libdatachannel** (Optional): Required if WebRTC support is enabled.
 
 
 ## Build Instructions
@@ -57,6 +59,10 @@ The project requires the following dependencies:
    To enable HTTPS support, use:
    ```bash
    cmake -DENABLE_HTTPS=1 ..
+   ```
+   To enable WebRTC support, use:
+   ```bash
+   cmake -DENABLE_RTC=1 ..
    ```
 
 3. **Build the project:**

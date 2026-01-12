@@ -25,6 +25,7 @@
 - **RTSP 服务器**: 支持实时流传输协议 (RTSP) 进行媒体流分发。
 - **HTTP 服务器**: 内置 HTTP 服务器，用于管理和信令交互。
 - **HTTP 流媒体**: 支持通过 HTTP 协议传输媒体流。
+- **WebRTC WHIP 支持**: 支持 WebRTC WHIP 协议。
 - **ONVIF 支持**: 包含对 ONVIF 协议的处理。
 - **设备管理**: 管理连接的设备。
 - **数据库集成**: 使用 SQLite 进行数据持久化。
@@ -36,10 +37,11 @@
 
 - **C++ 编译器**: 支持 C++17 标准。
 - **CMake**: 版本 3.10 或更高。
-- **FFmpeg**: 需要 `libavcodec`, `libavformat`, 和 `libavutil` 库。需要版本 7.0 及以上。
+- **FFmpeg**: 需要 `libavcodec`, `libavformat`, 和 `libavutil` 库。推荐版本 8.0 及以上。
 - **SQLite3**: 已包含源码。
 - **TinyXML2**: 已包含源码。
 - **OpenSSL** (可选): 仅在启用 HTTPS 支持时需要。
+- **libdatachannel** (可选): 仅在启用 WebRTC 支持时需要。
 
 ## 构建指南
 
@@ -56,6 +58,10 @@
    若要启用 HTTPS 支持，请使用:
    ```bash
    cmake -DENABLE_HTTPS=1 ..
+   ```
+   若要启用 WebRTC 支持，请使用:
+   ```bash
+   cmake -DENABLE_RTC=1 ..
    ```
 
 3. **编译项目:**
