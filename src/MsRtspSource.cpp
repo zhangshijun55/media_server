@@ -57,7 +57,8 @@ void MsRtspSource::OnRun() {
 
 	ret = av_find_best_stream(fmt_ctx, AVMEDIA_TYPE_AUDIO, -1, -1, NULL, 0);
 	if (ret >= 0) {
-		if (fmt_ctx->streams[ret]->codecpar->codec_id == AV_CODEC_ID_AAC) {
+		if (fmt_ctx->streams[ret]->codecpar->codec_id == AV_CODEC_ID_AAC ||
+		    fmt_ctx->streams[ret]->codecpar->codec_id == AV_CODEC_ID_OPUS) {
 			m_audioIdx = ret;
 			m_audio = fmt_ctx->streams[m_audioIdx];
 		}

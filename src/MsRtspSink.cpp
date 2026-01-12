@@ -512,7 +512,8 @@ void MsRtspSink::OnStreamInfo(AVStream *video, int videoIdx, AVStream *audio, in
 		AVCodecParameters *codecpar = m_outAudio->codecpar;
 		// if no extradata, generate it
 		if (codecpar->extradata_size == 0 && codecpar->sample_rate > 0 &&
-		    codecpar->ch_layout.nb_channels > 0 && codecpar->ch_layout.nb_channels < 3) {
+		    codecpar->ch_layout.nb_channels > 0 && codecpar->ch_layout.nb_channels < 3 &&
+		    codecpar->codec_id == AV_CODEC_ID_AAC) {
 			// generate aac extradata
 			// Map sample rate to index
 			int samplingFrequencyIndex = 15; // default to escape value

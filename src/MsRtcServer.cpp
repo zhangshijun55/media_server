@@ -28,6 +28,7 @@ void MsRtcServer::HandleMsg(MsMsg &msg) {
 		std::lock_guard<std::mutex> lock(m_mtx);
 		auto it = m_pcMap.find(sessionId);
 		if (it != m_pcMap.end()) {
+			it->second->SourceActiveClose();
 			m_pcMap.erase(it);
 			MS_LOG_INFO("pc:%s removed", sessionId.c_str());
 		}
@@ -370,6 +371,9 @@ void MsRtcServer::SRtcPeerConn::AddSink(std::shared_ptr<MsMediaSink> sink) {
 	if (m_video || m_audio) {
 		sink->OnStreamInfo(m_video, m_videoIdx, m_audio, m_audioIdx);
 	}
+	if (_videoTrack && _pc) {
+		_videoTrack->requestKeyframe();
+	}
 }
 
 void MsRtcServer::SRtcPeerConn::NotifyStreamPacket(AVPacket *pkt) {
@@ -409,10 +413,10 @@ void MsRtcServer::SRtcPeerConn::GenerateSdp() {
 	ss << "c=IN IP4 127.0.0.1\r\n";
 
 	if (_videoPt > 0) {
-		ss << "m=video 0 /RTP/AVP " << _videoPt << "\r\n";
+		ss << "m=video 0 RTP/AVP " << _videoPt << "\r\n";
 		ss << "a=rtpmap:" << _videoPt << " " << _videoCodec << "/90000\r\n";
 		for (size_t i = 0; i < _videoFmts.size(); ++i) {
-			ss << "a=fmtp:" << _videoPt << " " << _videoFmts[i].substr(strlen("fmtp:"));
+			ss << "a=fmtp:" << _videoPt << " " << _videoFmts[i];
 			ss << "\r\n";
 		}
 	}
@@ -422,7 +426,7 @@ void MsRtcServer::SRtcPeerConn::GenerateSdp() {
 		int clockRate = 48000;
 		ss << "a=rtpmap:" << _audioPt << " " << _audioCodec << "/" << clockRate << "/2\r\n";
 		for (size_t i = 0; i < _audioFmts.size(); ++i) {
-			ss << "a=fmtp:" << _audioPt << " " << _audioFmts[i].substr(strlen("fmtp:"));
+			ss << "a=fmtp:" << _audioPt << " " << _audioFmts[i];
 			ss << "\r\n";
 		}
 	}
@@ -437,6 +441,7 @@ void MsRtcServer::SRtcPeerConn::StartRtpDemux() {
 	AVIOContext *sdp_avio_context = nullptr;
 	AVFormatContext *fmtCtx = nullptr;
 	AVPacket *pkt = nullptr;
+	bool fisrtVideoPkt = true;
 
 	this->GenerateSdp();
 	MsResManager::GetInstance().AddMediaSource(_sessionId, this->GetSharedPtr());
@@ -524,12 +529,28 @@ void MsRtcServer::SRtcPeerConn::StartRtpDemux() {
 	while (av_read_frame(fmtCtx, pkt) >= 0 && !m_isClosing.load()) {
 		if (pkt->stream_index == m_videoIdx || pkt->stream_index == m_audioIdx) {
 			// if (pkt->stream_index == m_videoIdx) {
-			// 	MS_LOG_DEBUG("gb source video pkt pts:%lld dts:%lld key:%d", pkt->pts, pkt->dts,
+			// 	MS_LOG_DEBUG("rtc source video pkt pts:%lld dts:%lld key:%d", pkt->pts, pkt->dts,
 			// 	             pkt->flags & AV_PKT_FLAG_KEY);
 			// } else if (pkt->stream_index == m_audioIdx) {
-			// 	MS_LOG_DEBUG("gb source audio pkt pts:%lld dts:%lld size:%d", pkt->pts, pkt->dts,
+			// 	MS_LOG_DEBUG("rtc source audio pkt pts:%lld dts:%lld size:%d", pkt->pts, pkt->dts,
 			// 	             pkt->size);
 			// }
+
+			if (pkt->stream_index == m_videoIdx) {
+				if (fisrtVideoPkt) {
+					fisrtVideoPkt = false;
+					// TODO: quick fix for some RTSP stream with first pkt pts=dts=AV_NOPTS_VALUE
+					//       need better solution
+					if (pkt->pts == AV_NOPTS_VALUE) {
+						MS_LOG_WARN("first video pkt pts is AV_NOPTS_VALUE, set to 0");
+						pkt->pts = 0;
+						if (pkt->dts == AV_NOPTS_VALUE) {
+							pkt->dts = 0;
+						}
+					}
+				}
+			}
+
 			this->NotifyStreamPacket(pkt);
 		}
 		av_packet_unref(pkt);
@@ -546,7 +567,6 @@ err:
 	}
 
 	av_packet_free(&pkt);
-	this->SourceActiveClose();
 
 	MsMsg msg;
 	msg.m_msgID = MS_RTC_PEER_CLOSED;

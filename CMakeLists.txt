@@ -40,6 +40,7 @@ set(MAIN_SOURCES
     src/MsHttpHandler.cpp
     src/MsHttpServer.cpp
     src/MsHttpStream.cpp
+    src/MsHttpSink.cpp
     src/MsOnvifHandler.cpp
     src/MsResManager.cpp
     src/MsMediaSink.cpp
