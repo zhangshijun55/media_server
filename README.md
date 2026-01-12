@@ -1,6 +1,6 @@
 # Media Server
 
-A  media server implementation supporting GB/T 28181, RTSP, and HTTP streaming protocols.
+A  media server implementation supporting GB/T 28181, RTSP, WebRTC and HTTP streaming protocols.
 
 ## Table of Contents
 - [Features](#features)
