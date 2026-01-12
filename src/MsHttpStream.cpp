@@ -293,9 +293,6 @@ public:
 		this->ReleaseResources();
 	}
 
-	// TODO: firefox has high chance stall when Multiplexing flv streams
-	//       but ts streams seem ok, need further investigate
-	//       chromium ok for both flv and ts
 	void OnStreamPacket(AVPacket *pkt) override {
 		if (!m_streamReady || m_error) {
 			return;
@@ -317,8 +314,6 @@ public:
 				}
 			}
 		} else {
-			// drop audio frames until first video frame arrived
-			// TODO: may cause audio loss, need better solution
 			// buffer audio pkts
 			if (m_firstVideo) {
 				AVPacket *apkt = av_packet_clone(pkt);

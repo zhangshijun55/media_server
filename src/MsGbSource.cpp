@@ -504,7 +504,6 @@ int MsGbSource::ReadBuffer(uint8_t *buf, int buf_size) {
 	return m_ringBuffer->read((char *)buf, buf_size);
 }
 
-// TODO: test ring buffer
 int MsGbSource::WriteBuffer(uint8_t *buf, int len) {
 	if (m_isClosing.load()) {
 		return -1;

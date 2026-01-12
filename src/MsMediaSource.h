@@ -20,12 +20,12 @@ public:
 
 	virtual ~MsMediaSource() { MS_LOG_INFO("media source %s destroyed", m_streamID.c_str()); }
 
-	void AddSink(std::shared_ptr<MsMediaSink> sink);
+	virtual void AddSink(std::shared_ptr<MsMediaSink> sink);
 	void RemoveSink(const std::string &type, int sinkID);
 	void RemoveSinkNoLock(const std::string &type, int sinkID);
 	void NotifyStreamInfo();
 	void NotifySourceClose();
-	void NotifyStreamPacket(AVPacket *pkt);
+	virtual void NotifyStreamPacket(AVPacket *pkt);
 	virtual void SourceActiveClose();
 	virtual void OnSinksEmpty();
 	virtual void Work() = 0;

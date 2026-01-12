@@ -226,12 +226,24 @@ void MsRtcServer::WhipProcess(SHttpTransferMsg *rtcMsg) {
 				    std::make_shared<rtc::RtcpReceivingSession>();
 				track->setMediaHandler(session);
 
+				shared_ptr<SRtcPeerConn> peerConn;
+				{
+					std::lock_guard<std::mutex> lock(m_mtx);
+					auto it = m_pcMap.find(sessionId);
+					if (it != m_pcMap.end()) {
+						peerConn = it->second;
+					}
+				}
+
 				track->onMessage(
-				    [](rtc::binary message) {
-					    // This is an RTP packet
-					    auto rtp = reinterpret_cast<rtc::RtpHeader *>(message.data());
-					    // log payload type and size
-					    printf("rtp payload type:%d size:%d\n", rtp->payloadType(), message.size());
+				    [peerConn](rtc::binary message) {
+					    if (peerConn) {
+						    auto rtp = reinterpret_cast<rtc::RtpHeader *>(message.data());
+						    if (rtp->payloadType() == peerConn->_videoPt ||
+						        rtp->payloadType() == peerConn->_audioPt) {
+							    peerConn->WriteBuffer(message.data(), message.size());
+						    }
+					    }
 				    },
 				    nullptr);
 			}
@@ -247,6 +259,8 @@ void MsRtcServer::WhipProcess(SHttpTransferMsg *rtcMsg) {
 					if (peerConn->_receivedTracks == peerConn->_expectedTracks) {
 						MS_LOG_INFO("pc:%s all %d tracks received", sessionId.c_str(),
 						            peerConn->_expectedTracks);
+						peerConn->m_rtpThread =
+						    std::make_unique<std::thread>(&SRtcPeerConn::StartRtpDemux, peerConn);
 					}
 				}
 			}
@@ -302,7 +316,7 @@ void MsRtcServer::WhipProcess(SHttpTransferMsg *rtcMsg) {
 			std::lock_guard<std::mutex> lock(m_mtx);
 			auto it = m_pcMap.find(sessionId);
 			if (it != m_pcMap.end()) {
-				it->second->_pc->close();
+				it->second->SourceActiveClose();
 				m_pcMap.erase(it);
 			}
 		}
@@ -328,11 +342,104 @@ void MsRtcServer::WhipProcess(SHttpTransferMsg *rtcMsg) {
 	}
 }
 
+MsRtcServer::SRtcPeerConn::~SRtcPeerConn() {
+	MS_LOG_INFO("~SRtcPeerConn %s", _sessionId.c_str());
+	while (m_rtcDataQue.size()) {
+		SData data = m_rtcDataQue.front();
+		m_rtcDataQue.pop();
+		if (data.m_buf) {
+			delete[] data.m_buf;
+		}
+	}
+	while (m_recyleQue.size()) {
+		SData data = m_recyleQue.front();
+		m_recyleQue.pop();
+		if (data.m_buf) {
+			delete[] data.m_buf;
+		}
+	}
+}
+
+void MsRtcServer::SRtcPeerConn::AddSink(std::shared_ptr<MsMediaSink> sink) {
+	if (!sink || m_isClosing.load()) {
+		return;
+	}
+
+	std::lock_guard<std::mutex> lock(m_sinkMutex);
+	m_sinks.push_back(sink);
+	if (m_video || m_audio) {
+		sink->OnStreamInfo(m_video, m_videoIdx, m_audio, m_audioIdx);
+	}
+}
+
+void MsRtcServer::SRtcPeerConn::NotifyStreamPacket(AVPacket *pkt) {
+	std::lock_guard<std::mutex> lock(m_sinkMutex);
+	for (auto &sink : m_sinks) {
+		if (sink) {
+			sink->OnStreamPacket(pkt);
+		}
+	}
+}
+
+void MsRtcServer::SRtcPeerConn::SourceActiveClose() {
+	m_isClosing.store(true);
+	m_condVar.notify_all();
+
+	try {
+		_pc->close();
+	} catch (...) {
+	}
+
+	if (m_rtpThread) {
+		m_rtpThread->join();
+		m_rtpThread.reset();
+	}
+
+	if (_sock) {
+		_sock.reset();
+	}
+
+	MsMediaSource::SourceActiveClose();
+}
+
+void MsRtcServer::SRtcPeerConn::GenerateSdp() {
+	std::stringstream ss;
+	ss << "v=0\r\n";
+	ss << "o=- 0 0 IN IP4 127.0.0.1\r\n";
+	ss << "c=IN IP4 127.0.0.1\r\n";
+
+	if (_videoPt > 0) {
+		ss << "m=video 0 /RTP/AVP " << _videoPt << "\r\n";
+		ss << "a=rtpmap:" << _videoPt << " " << _videoCodec << "/90000\r\n";
+		for (size_t i = 0; i < _videoFmts.size(); ++i) {
+			ss << "a=fmtp:" << _videoPt << " " << _videoFmts[i].substr(strlen("fmtp:"));
+			ss << "\r\n";
+		}
+	}
+
+	if (_audioPt > 0) {
+		ss << "m=audio 0 RTP/AVP " << _audioPt << "\r\n";
+		int clockRate = 48000;
+		ss << "a=rtpmap:" << _audioPt << " " << _audioCodec << "/" << clockRate << "/2\r\n";
+		for (size_t i = 0; i < _audioFmts.size(); ++i) {
+			ss << "a=fmtp:" << _audioPt << " " << _audioFmts[i].substr(strlen("fmtp:"));
+			ss << "\r\n";
+		}
+	}
+
+	_sdp = ss.str();
+	MS_LOG_DEBUG("pc:%s generated sdp:\n%s", _sessionId.c_str(), _sdp.c_str());
+}
+
 void MsRtcServer::SRtcPeerConn::StartRtpDemux() {
 	int rtp_buff_size = 1500;
 	AVIOContext *rtp_avio_context = nullptr;
 	AVIOContext *sdp_avio_context = nullptr;
 	AVFormatContext *fmtCtx = nullptr;
+	AVPacket *pkt = nullptr;
+
+	this->GenerateSdp();
+	MsResManager::GetInstance().AddMediaSource(_sessionId, this->GetSharedPtr());
 
 	sdp_avio_context = avio_alloc_context(
 	    static_cast<unsigned char *>(av_malloc(_sdp.size())), _sdp.size(), 0, this,
@@ -358,8 +465,7 @@ void MsRtcServer::SRtcPeerConn::StartRtpDemux() {
 	    [](void *opaque, uint8_t *buf, int buf_size) -> int {
 		    // This is RTP Packet
 		    auto rpc = static_cast<SRtcPeerConn *>(opaque);
-		    //
-		    return buf_size;
+		    return rpc->ReadBuffer(buf, buf_size);
 	    },
 	    // Ignore RTCP Packets. Must be set
 	    [](void *, const uint8_t *, int buf_size) -> int { return buf_size; }, NULL);
@@ -393,6 +499,42 @@ void MsRtcServer::SRtcPeerConn::StartRtpDemux() {
 		goto err;
 	}
 
+	ret = av_find_best_stream(fmtCtx, AVMEDIA_TYPE_VIDEO, -1, -1, nullptr, 0);
+	if (ret < 0) {
+		MS_LOG_ERROR("pc:%s no video stream found", _sessionId.c_str());
+		goto err;
+	}
+	m_videoIdx = ret;
+	m_video = fmtCtx->streams[m_videoIdx];
+
+	ret = av_find_best_stream(fmtCtx, AVMEDIA_TYPE_AUDIO, -1, -1, nullptr, 0);
+	if (ret >= 0) {
+		AVCodecParameters *codecPar = fmtCtx->streams[ret]->codecpar;
+		if (codecPar->codec_id == AV_CODEC_ID_OPUS || codecPar->codec_id == AV_CODEC_ID_AAC) {
+			m_audioIdx = ret;
+			m_audio = fmtCtx->streams[m_audioIdx];
+		}
+	}
+
+	this->NotifyStreamInfo();
+
+	pkt = av_packet_alloc();
+
+	/* read frames from the file */
+	while (av_read_frame(fmtCtx, pkt) >= 0 && !m_isClosing.load()) {
+		if (pkt->stream_index == m_videoIdx || pkt->stream_index == m_audioIdx) {
+			// if (pkt->stream_index == m_videoIdx) {
+			// 	MS_LOG_DEBUG("gb source video pkt pts:%lld dts:%lld key:%d", pkt->pts, pkt->dts,
+			// 	             pkt->flags & AV_PKT_FLAG_KEY);
+			// } else if (pkt->stream_index == m_audioIdx) {
+			// 	MS_LOG_DEBUG("gb source audio pkt pts:%lld dts:%lld size:%d", pkt->pts, pkt->dts,
+			// 	             pkt->size);
+			// }
+			this->NotifyStreamPacket(pkt);
+		}
+		av_packet_unref(pkt);
+	}
+
 err:
 	if (fmtCtx) {
 		if (fmtCtx->pb) {
@@ -403,5 +545,78 @@ err:
 		fmtCtx = nullptr;
 	}
 
-	return;
+	av_packet_free(&pkt);
+	this->SourceActiveClose();
+
+	MsMsg msg;
+	msg.m_msgID = MS_RTC_PEER_CLOSED;
+	msg.m_strVal = _sessionId;
+	msg.m_dstType = MS_RTC_SERVER;
+	msg.m_dstID = 1;
+	MsReactorMgr::Instance()->PostMsg(msg);
+}
+
+void MsRtcServer::SRtcPeerConn::WriteBuffer(const void *buf, int size) {
+	if (m_isClosing.load()) {
+		return;
+	}
+
+	std::unique_lock<std::mutex> lock(m_queMtx);
+	if (m_recyleQue.size() > 0) {
+		SData &sd = m_recyleQue.front();
+		if (sd.m_capacity >= size) {
+			memcpy(sd.m_buf, buf, size);
+			sd.m_len = size;
+			m_rtcDataQue.push(sd);
+			m_recyleQue.pop();
+			lock.unlock();
+			m_condVar.notify_one();
+			return;
+		} else {
+			// not enough capacity
+			delete[] sd.m_buf;
+			m_recyleQue.pop();
+		}
+	}
+
+	SData sd;
+	sd.m_buf = new uint8_t[size];
+	sd.m_len = size;
+	sd.m_capacity = size;
+	memcpy(sd.m_buf, buf, size);
+	m_rtcDataQue.push(sd);
+	lock.unlock();
+	m_condVar.notify_one();
+}
+
+int MsRtcServer::SRtcPeerConn::ReadBuffer(uint8_t *buf, int buf_size) {
+	std::unique_lock<std::mutex> lock(m_queMtx);
+	m_condVar.wait(lock, [this]() { return m_rtcDataQue.size() > 0 || m_isClosing.load(); });
+
+	if (m_isClosing.load()) {
+		return AVERROR_EOF;
+	}
+
+	if (m_rtcDataQue.size() <= 0) {
+		return AVERROR(EAGAIN);
+	}
+
+	SData &sd = m_rtcDataQue.front();
+	int toRead = buf_size;
+	if (toRead > sd.m_len) {
+		toRead = sd.m_len;
+	}
+
+	memcpy(buf, sd.m_buf, toRead);
+	if (toRead < sd.m_len) {
+		memmove(sd.m_buf, sd.m_buf + toRead, sd.m_len - toRead);
+	}
+	sd.m_len -= toRead;
+
+	if (sd.m_len == 0) {
+		m_recyleQue.push(sd);
+		m_rtcDataQue.pop();
+	}
+
+	return toRead;
 }

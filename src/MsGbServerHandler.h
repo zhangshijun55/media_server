@@ -43,6 +43,7 @@ public:
 	void HandleClose(shared_ptr<MsEvent> evt);
 
 private:
+	bool CheckVaildHeader(char *p2);
 	shared_ptr<MsIGbServer> m_server;
 
 	char *m_buf;
