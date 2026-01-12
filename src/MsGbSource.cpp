@@ -56,7 +56,13 @@ public:
 
 					return;
 				} else {
-					m_source->ProcessRtp(xbuf + 2, pktLen);
+					if (m_source->ProcessRtp(xbuf + 2, pktLen) < 0) {
+						MS_LOG_WARN("gb source closing, stop process rtp");
+						m_bufOff = 0;
+						m_source->DelEvent(evt);
+						m_source->SourceActiveClose();
+						return;
+					}
 					xbuf += pktLen + 2;
 					m_bufOff -= pktLen + 2;
 				}
@@ -67,7 +73,13 @@ public:
 			}
 		} else // udp
 		{
-			m_source->ProcessRtp((uint8_t *)m_buf, m_bufOff);
+			if (m_source->ProcessRtp((uint8_t *)m_buf, m_bufOff) < 0) {
+				MS_LOG_WARN("gb source closing, stop process rtp");
+				m_bufOff = 0;
+				m_source->DelEvent(evt);
+				m_source->SourceActiveClose();
+				return;
+			}
 			m_bufOff = 0;
 		}
 
@@ -451,6 +463,13 @@ void MsGbSource::PsParseThread() {
 	/* read frames from the file */
 	while (av_read_frame(fmt_ctx, pkt) >= 0 && !m_isClosing.load()) {
 		if (pkt->stream_index == m_videoIdx || pkt->stream_index == m_audioIdx) {
+			// if (pkt->stream_index == m_videoIdx) {
+			// 	MS_LOG_DEBUG("gb source video pkt pts:%lld dts:%lld key:%d", pkt->pts, pkt->dts,
+			// 	             pkt->flags & AV_PKT_FLAG_KEY);
+			// } else if (pkt->stream_index == m_audioIdx) {
+			// 	MS_LOG_DEBUG("gb source audio pkt pts:%lld dts:%lld size:%d", pkt->pts, pkt->dts,
+			// 	             pkt->size);
+			// }
 			this->NotifyStreamPacket(pkt);
 		}
 		av_packet_unref(pkt);
@@ -486,14 +505,19 @@ int MsGbSource::ReadBuffer(uint8_t *buf, int buf_size) {
 }
 
 // TODO: test ring buffer
-void MsGbSource::WriteBuffer(uint8_t *buf, int len) {
+int MsGbSource::WriteBuffer(uint8_t *buf, int len) {
+	if (m_isClosing.load()) {
+		return -1;
+	}
+
 	std::unique_lock<std::mutex> lock(m_mutex);
 	m_ringBuffer->write(buf, len);
 	lock.unlock();
 	m_condVar.notify_one();
+	return 0;
 }
 
-void MsGbSource::ProcessRtp(uint8_t *buf, int len) {
+int MsGbSource::ProcessRtp(uint8_t *buf, int len) {
 	// Process RTP packet
 	unsigned int ssrc;
 	int payload_type, flags = 0;
@@ -513,7 +537,7 @@ void MsGbSource::ProcessRtp(uint8_t *buf, int len) {
 
 	/* NOTE: we can handle only one payload type */
 	if (m_payload != payload_type)
-		return;
+		return 0;
 
 	if (m_firstPkt) {
 		m_seq = seq;
@@ -543,22 +567,35 @@ void MsGbSource::ProcessRtp(uint8_t *buf, int len) {
 	buf += 4 * csrc;
 
 	if (len < 0)
-		return;
+		return 0;
 
 	/* RFC 3550 Section 5.3.1 RTP Header Extension handling */
 	if (ext) {
 		if (len < 4)
-			return;
+			return 0;
 		/* calculate the header extension length (stored as number
 		 * of 32-bit words) */
 		ext = (AV_RB16(buf + 2) + 1) << 2;
 
 		if (len < ext)
-			return;
+			return 0;
 		// skip past RTP header extension
 		len -= ext;
 		buf += ext;
 	}
 
-	this->WriteBuffer(buf, len);
+	return this->WriteBuffer(buf, len);
+}
+
+void MsGbSource::SourceActiveClose() {
+	m_isClosing.store(true);
+	m_condVar.notify_all();
+	MsMediaSource::SourceActiveClose();
+	this->PostExit();
+}
+
+void MsGbSource::OnSinksEmpty() {
+	m_isClosing.store(true);
+	m_condVar.notify_all();
+	MsMediaSource::OnSinksEmpty();
 }

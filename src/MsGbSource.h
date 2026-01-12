@@ -27,25 +27,16 @@ public:
 
 	void Exit() override;
 	void HandleMsg(MsMsg &msg) override;
-	void ProcessRtp(uint8_t *buf, int len);
+	int ProcessRtp(uint8_t *buf, int len);
 
-	void SourceActiveClose() override {
-		m_isClosing.store(true);
-		m_condVar.notify_all();
-		MsMediaSource::SourceActiveClose();
-	}
-
-	void OnSinksEmpty() override {
-		m_isClosing.store(true);
-		m_condVar.notify_all();
-		MsMediaSource::OnSinksEmpty();
-	}
+	void SourceActiveClose() override;
+	void OnSinksEmpty() override;
 
 private:
 	void OnRun();
 	void PsParseThread();
 	int ReadBuffer(uint8_t *buf, int buf_size);
-	void WriteBuffer(uint8_t *buf, int len);
+	int WriteBuffer(uint8_t *buf, int len);
 
 private:
 	bool m_firstPkt = true;

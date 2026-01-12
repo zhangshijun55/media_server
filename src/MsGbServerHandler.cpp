@@ -51,13 +51,13 @@ void MsGbServerHandler::HandleRead(shared_ptr<MsEvent> evt) {
 		if (left < cntLen) {
 			p2 = oriP2;
 			if (m_bufOff) {
-				MS_LOG_DEBUG("gb server buf left:%d", m_bufOff);
+				MS_LOG_DEBUG("gb server buf:%s left:%d", oriP2, m_bufOff);
 				memmove(m_buf, p2, m_bufOff);
 			}
 			return;
 		}
 
-		MS_LOG_VERBS("recv:%s", m_buf);
+		MS_LOG_VERBS("recv:%s", oriP2);
 
 		if (sipMsg.m_vias.back().HasRport() && !isTcp) {
 			sipMsg.m_vias.back().Rebuild(sipMsg.m_vias.back().GetTransport(),
