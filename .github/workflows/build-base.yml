@@ -23,7 +23,20 @@ jobs:
     - name: Install dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y libavcodec-dev libavformat-dev libavutil-dev pkg-config
+        sudo apt-get install -y nasm yasm pkg-config
+
+    - name: Install FFmpeg
+      run: |
+        git clone https://github.com/FFmpeg/FFmpeg.git
+        cd FFmpeg
+        # Checkout latest release tag (starting with n)
+        LATEST_TAG=$(git tag -l "n*" | sort -V | tail -n1)
+        echo "Building FFmpeg version: $LATEST_TAG"
+        git checkout $LATEST_TAG
+        ./configure --prefix=/usr/local --enable-shared --disable-static --disable-doc --disable-programs --disable-avdevice --disable-swresample --disable-postproc --disable-avfilter
+        make -j$(nproc)
+        sudo make install
+        sudo ldconfig
 
     - name: Configure CMake
       # Configure CMake in a 'build' subdirectory. `CMAKE_BUILD_TYPE` is only required if you are using a single-configuration generator such as make.
