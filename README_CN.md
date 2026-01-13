@@ -1,5 +1,10 @@
 # 媒体服务器 (Media Server)
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Build Base](https://github.com/greenjim301-ux/media-server/actions/workflows/build-base.yml/badge.svg)](https://github.com/greenjim301-ux/media-server/actions/workflows/build-base.yml)
+[![Build with HTTPS](https://github.com/greenjim301-ux/media-server/actions/workflows/build-https.yml/badge.svg)](https://github.com/greenjim301-ux/media-server/actions/workflows/build-https.yml)
+[![Build with WebRTC](https://github.com/greenjim301-ux/media-server/actions/workflows/build-rtc.yml/badge.svg)](https://github.com/greenjim301-ux/media-server/actions/workflows/build-rtc.yml)
+
 一个支持 GB/T 28181、RTSP、WebRTC 和 HTTP 流媒体协议的媒体服务器实现。
 
 ## 目录

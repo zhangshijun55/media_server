@@ -1,4 +1,4 @@
-name: CMake Build with WebRTC
+name: Build with WebRTC
 
 on:
   push:

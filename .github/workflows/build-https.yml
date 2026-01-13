@@ -1,4 +1,4 @@
-name: CMake Build with HTTPS
+name: Build with HTTPS
 
 on:
   push:
