@@ -26,6 +26,7 @@ find_package(PkgConfig REQUIRED)
 pkg_search_module(AVCODEC REQUIRED IMPORTED_TARGET libavcodec)
 pkg_search_module(AVFORMAT REQUIRED IMPORTED_TARGET libavformat)
 pkg_search_module(AVUTIL REQUIRED IMPORTED_TARGET libavutil)
+pkg_search_module(SQLITE3 REQUIRED IMPORTED_TARGET sqlite3)
 
 # Add source files from src directory
 set(MAIN_SOURCES
@@ -49,7 +50,6 @@ set(MAIN_SOURCES
     src/MsRtspSource.cpp
     src/MsRtspSink.cpp
     src/tinyxml2/tinyxml2.cpp
-    src/sqlite/sqlite3.c
 )
 
 # Add source files from src/base directory
@@ -93,6 +93,7 @@ target_link_libraries(media_server PRIVATE
     PkgConfig::AVCODEC
     PkgConfig::AVFORMAT
     PkgConfig::AVUTIL
+    PkgConfig::SQLITE3
 )
 
 if(ENABLE_HTTPS)

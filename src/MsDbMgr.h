@@ -2,9 +2,9 @@
 #define MS_DB_MGR_H
 
 #include "MsCommon.h"
-#include "sqlite/sqlite3.h"
 #include <memory>
 #include <mutex>
+#include <sqlite3.h>
 
 using namespace std;
 

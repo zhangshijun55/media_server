@@ -44,7 +44,7 @@ The project requires the following dependencies:
 - **C++ Compiler**: Supports C++17 standard.
 - **CMake**: Version 3.10 or higher.
 - **FFmpeg**: Requires `libavcodec`, `libavformat`, and `libavutil`. Recommended version 8.0 and above.
-- **SQLite3**: Source included.
+- **SQLite3**: Requires `sqlite3` library/headers installed on the system.
 - **TinyXML2**: Source included.
 - **OpenSSL** (Optional): Required if HTTPS support is enabled.
 - **libdatachannel** (Optional): Required if WebRTC support is enabled.
