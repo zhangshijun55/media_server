@@ -29,10 +29,6 @@ jobs:
       run: |
         git clone -b master --depth 1 https://github.com/FFmpeg/FFmpeg.git
         cd FFmpeg
-        # Checkout latest release tag (starting with n)
-        LATEST_TAG=n8.0
-        echo "Building FFmpeg version: $LATEST_TAG"
-        git checkout $LATEST_TAG
         ./configure --prefix=/usr/local --enable-shared --disable-static --disable-doc --disable-programs --disable-avdevice --disable-swresample --disable-avfilter
         make -j$(nproc)
         sudo make install
