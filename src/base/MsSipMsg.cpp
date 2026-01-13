@@ -600,7 +600,7 @@ int SendSipMsg(MsSipMsg &msg, shared_ptr<MsSocket> s, MsInetAddr &addr) {
 		ret = s->Sendto(data.c_str(), data.size(), addr);
 	}
 
-	MS_LOG_INFO("send:%s", data.c_str());
+	MS_LOG_INFO("send:\n%s", data.c_str());
 
 	return ret;
 }

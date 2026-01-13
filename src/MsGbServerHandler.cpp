@@ -39,23 +39,9 @@ void MsGbServerHandler::HandleRead(shared_ptr<MsEvent> evt) {
 			} else if (m_bufOff) {
 				if (p2 != m_buf) {
 					MS_LOG_DEBUG("gb server left:%d msg:%s", m_bufOff, p2);
-
-					if (CheckVaildHeader(p2)) {
-						memmove(m_buf, p2, m_bufOff);
-					} else {
-						MS_LOG_DEBUG("gb server unknown msg:%s", p2);
-						m_bufOff = 0;
-						return;
-					}
+					memmove(m_buf, p2, m_bufOff);
 				}
 			}
-			return;
-		}
-
-		// TODO: tcpdump invalid msg
-		if (!CheckVaildHeader(p2)) {
-			MS_LOG_DEBUG("gb server invalid msg:%s", p2);
-			m_bufOff = 0;
 			return;
 		}
 
@@ -66,22 +52,15 @@ void MsGbServerHandler::HandleRead(shared_ptr<MsEvent> evt) {
 		int left = m_bufOff - (p2 - oriP2);
 
 		if (left < cntLen) {
-			char *op2 = p2;
 			p2 = oriP2;
-			if (m_bufOff) {
-				MS_LOG_DEBUG("gb server bufoff:%d msg header:\n%s", m_bufOff,
-				             string(oriP2, op2 - oriP2).c_str());
-				MS_LOG_DEBUG("body:\n%s", op2);
-				MS_LOG_DEBUG("gb server need len:%d left:%d", cntLen, left);
+			if (m_bufOff && p2 != m_buf) {
+				MS_LOG_DEBUG("gb server need len:%d left:%d cnt:%s", cntLen, left, p2);
 				memmove(m_buf, p2, m_bufOff);
 			}
 			return;
 		}
 
-		MS_LOG_VERBS("recv cnt len:%d msg header:\n%s", cntLen, string(oriP2, p2 - oriP2).c_str());
-		if (cntLen > 0) {
-			MS_LOG_VERBS("body:\n%s", string(p2, cntLen).c_str());
-		}
+		MS_LOG_VERBS("recv:\n%s", oriP2);
 
 		if (sipMsg.m_vias.back().HasRport() && !isTcp) {
 			sipMsg.m_vias.back().Rebuild(sipMsg.m_vias.back().GetTransport(),
@@ -109,10 +88,7 @@ void MsGbServerHandler::HandleRead(shared_ptr<MsEvent> evt) {
 		}
 
 		p2 += cntLen;
-		// m_bufOff -= (p2 - oriP2);
-		int consumed = p2 - m_buf;
-		m_bufOff = oriTotal - consumed;
-		MS_LOG_DEBUG("gb server buff consumed:%d left:%d", consumed, m_bufOff);
+		m_bufOff -= (p2 - oriP2);
 	}
 }
 
@@ -127,15 +103,6 @@ void MsGbServerHandler::HandleClose(shared_ptr<MsEvent> evt) {
 	msg.m_dstID = m_server->GetID();
 	msg.m_intVal = evt->GetSocket()->GetFd();
 	m_server->EnqueMsg(msg);
-}
-
-bool MsGbServerHandler::CheckVaildHeader(char *p2) {
-	return strncmp(p2, "MESSAGE", strlen("MESSAGE")) == 0 ||
-	       strncmp(p2, "REGISTER", strlen("REGISTER")) == 0 ||
-	       strncmp(p2, "INVITE", strlen("INVITE")) == 0 || strncmp(p2, "BYE", strlen("BYE")) == 0 ||
-	       strncmp(p2, "ACK", strlen("ACK")) == 0 || strncmp(p2, "NOTIFY", strlen("NOTIFY")) == 0 ||
-	       strncmp(p2, "CANCEL", strlen("CANCEL")) == 0 ||
-	       strncmp(p2, "SIP/2.0", strlen("SIP/2.0")) == 0;
 }
 
 void MsGbAcceptHandler::HandleRead(shared_ptr<MsEvent> evt) {

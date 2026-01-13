@@ -9,7 +9,7 @@
 MsGbServer::MsGbServer(int type, int id) : MsIGbServer(type, id), m_cseq(0) {}
 
 void MsGbServer::Run() {
-	MsIGbServer::Run();
+	this->RegistToManager();
 
 	MsConfig *config = MsConfig::Instance();
 	m_ip = config->GetConfigStr("localBindIP");
