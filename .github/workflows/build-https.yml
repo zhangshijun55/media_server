@@ -19,16 +19,7 @@ jobs:
     - name: Install dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y nasm yasm pkg-config libssl-dev
-
-    - name: Install FFmpeg
-      run: |
-        git clone -b master --depth 1 https://github.com/FFmpeg/FFmpeg.git
-        cd FFmpeg
-        ./configure --prefix=/usr/local --enable-shared --disable-static --disable-doc --disable-programs --disable-avdevice --disable-swresample --disable-avfilter
-        make -j$(nproc)
-        sudo make install
-        sudo ldconfig
+        sudo apt-get install -y libavcodec-dev libavformat-dev libavutil-dev pkg-config libssl-dev
 
     - name: Configure CMake
       run: cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} -DENABLE_HTTPS=ON
