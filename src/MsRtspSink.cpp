@@ -448,9 +448,15 @@ void MsRtspSink::OnStreamInfo(AVStream *video, int videoIdx, AVStream *audio, in
 	m_evt = std::make_shared<MsEvent>(m_sock, MS_FD_READ | MS_FD_CLOSE, handler);
 	m_reactor->AddEvent(m_evt);
 
+#if LIBAVFORMAT_VERSION_MAJOR >= 61
+	using IO_WRITE_BUF_TYPE = const uint8_t;
+#else
+	using IO_WRITE_BUF_TYPE = uint8_t;
+#endif
+
 	m_pb = avio_alloc_context(
 	    static_cast<unsigned char *>(av_malloc(buf_size)), buf_size, 1, this, nullptr,
-	    [](void *opaque, const uint8_t *buf, int buf_size) -> int {
+	    [](void *opaque, IO_WRITE_BUF_TYPE *buf, int buf_size) -> int {
 		    MsRtspSink *sink = static_cast<MsRtspSink *>(opaque);
 		    return sink->WriteBuffer(buf, buf_size, 0);
 	    },
@@ -485,7 +491,7 @@ void MsRtspSink::OnStreamInfo(AVStream *video, int videoIdx, AVStream *audio, in
 	if (m_audio) {
 		m_pbAudio = avio_alloc_context(
 		    static_cast<unsigned char *>(av_malloc(buf_size)), buf_size, 1, this, nullptr,
-		    [](void *opaque, const uint8_t *buf, int buf_size) -> int {
+		    [](void *opaque, IO_WRITE_BUF_TYPE *buf, int buf_size) -> int {
 			    MsRtspSink *sink = static_cast<MsRtspSink *>(opaque);
 			    return sink->WriteBuffer(buf, buf_size, 2);
 		    },
@@ -663,7 +669,9 @@ void MsRtspSink::OnStreamPacket(AVPacket *pkt) {
 
 	ret = av_write_frame(fmtCtx, pkt);
 	if (ret < 0) {
-		MS_LOG_ERROR("Error writing frame to HTTP sink, ret:%d %s", ret, av_err2str(ret));
+		char errbuf[AV_ERROR_MAX_STRING_SIZE] = {0};
+		av_strerror(ret, errbuf, sizeof(errbuf));
+		MS_LOG_ERROR("Error writing frame to RTSP sink, ret:%d %s", ret, errbuf);
 		MS_LOG_INFO("streamID:%s, sinkID:%d codec:%d pts:%ld dts:%ld size:%d", m_streamID.c_str(),
 		            m_sinkID, inSt->codecpar->codec_id, pkt->pts, pkt->dts, pkt->size);
 		MS_LOG_INFO("ori pts:%ld dts:%ld, in timebase %d/%d, out timebase %d/%d", orig_pts,
