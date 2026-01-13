@@ -23,22 +23,21 @@ jobs:
 
     - name: Install FFmpeg
       run: |
-        git clone https://github.com/FFmpeg/FFmpeg.git
+        git clone -b master --depth 1 https://github.com/FFmpeg/FFmpeg.git
         cd FFmpeg
         # Checkout latest release tag (starting with n)
-        LATEST_TAG=$(git tag -l "n*" | sort -V | tail -n1)
+        LATEST_TAG=n8.0
         echo "Building FFmpeg version: $LATEST_TAG"
         git checkout $LATEST_TAG
-        ./configure --prefix=/usr/local --enable-shared --disable-static --disable-doc --disable-programs --disable-avdevice --disable-swresample --disable-postproc --disable-avfilter
+        ./configure --prefix=/usr/local --enable-shared --disable-static --disable-doc --disable-programs --disable-avdevice --disable-swresample --disable-avfilter
         make -j$(nproc)
         sudo make install
         sudo ldconfig
 
     - name: Install LibDataChannel
       run: |
-        git clone https://github.com/paullouisageneau/libdatachannel.git
+        git clone -b master --depth 1 https://github.com/paullouisageneau/libdatachannel.git
         cd libdatachannel
-        git checkout v0.21.2 # Pinning a recent stable version is good practice, or use master
         git submodule update --init --recursive
         cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr/local -DNO_EXAMPLES=ON -DNO_TESTS=ON
         cmake --build build -j$(nproc)
