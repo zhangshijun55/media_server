@@ -24,8 +24,9 @@ jobs:
     - name: Install LibDataChannel
       run: |
         git clone -b master --depth 1 https://github.com/paullouisageneau/libdatachannel.git
+        cd libdatachannel
         git submodule update --init --recursive
-        cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr/local
+        cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr/local -DNO_EXAMPLES=ON -DNO_TESTS=ON
         cmake --build build -j$(nproc)
         sudo cmake --install build
         
