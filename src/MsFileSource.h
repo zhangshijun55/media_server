@@ -1,4 +1,5 @@
-#pragma once
+#ifndef MS_FILE_SOURCE_H
+#define MS_FILE_SOURCE_H
 #include "MsMediaSource.h"
 #include "MsMsgDef.h"
 
@@ -20,3 +21,5 @@ private:
 	int64_t m_lastMs = 0;
 	std::string m_filename;
 };
+
+#endif // MS_FILE_SOURCE_H

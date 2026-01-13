@@ -1,4 +1,5 @@
-#pragma once
+#ifndef MS_MSG_DEF_H
+#define MS_MSG_DEF_H
 #include "MsHttpMsg.h"
 #include <stdint.h>
 #include <string>
@@ -84,3 +85,5 @@ struct SHttpTransferMsg {
 	string body;
 	shared_ptr<MsSocket> sock;
 };
+
+#endif // MS_MSG_DEF_H

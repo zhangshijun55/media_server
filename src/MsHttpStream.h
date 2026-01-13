@@ -1,4 +1,5 @@
-#pragma once
+#ifndef MS_HTTP_STREAM_H
+#define MS_HTTP_STREAM_H
 #include "MsMsgDef.h"
 #include "MsReactor.h"
 #include <string>
@@ -15,3 +16,5 @@ private:
 private:
 	int m_seqID = 0;
 };
+
+#endif // MS_HTTP_STREAM_H

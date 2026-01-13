@@ -1,4 +1,5 @@
-#pragma once
+#ifndef MS_HTTP_SERVER_H
+#define MS_HTTP_SERVER_H
 #include "MsHttpHandler.h"
 #include "MsHttpMsg.h"
 #include "MsMsgDef.h"
@@ -54,3 +55,5 @@ private:
 
 	shared_ptr<SMediaNode> GetBestMediaNode(const string &devId, const string &bindIP);
 };
+
+#endif // MS_HTTP_SERVER_H

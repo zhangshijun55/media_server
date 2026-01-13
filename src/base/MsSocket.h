@@ -1,4 +1,5 @@
-#pragma once
+#ifndef MS_SOCKET_H
+#define MS_SOCKET_H
 #include "MsInetAddr.h"
 #include "MsOsConfig.h"
 #include <memory>
@@ -34,3 +35,5 @@ public:
 protected:
 	MS_SOCKET m_sock;
 };
+
+#endif // MS_SOCKET_H

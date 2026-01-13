@@ -1,4 +1,5 @@
-#pragma once
+#ifndef MS_PORT_ALLOCATOR_H
+#define MS_PORT_ALLOCATOR_H
 
 #include "MsSocket.h"
 #include <condition_variable>
@@ -33,3 +34,5 @@ private:
 	static mutex m_mutex;
 	static condition_variable m_condiVar;
 };
+
+#endif // MS_PORT_ALLOCATOR_H

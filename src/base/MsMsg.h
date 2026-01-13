@@ -1,4 +1,5 @@
-#pragma once
+#ifndef MS_MSG_H
+#define MS_MSG_H
 
 #include "MsOsConfig.h"
 #include <string>
@@ -25,3 +26,5 @@ public:
 	string m_strVal;
 	void *m_ptr;
 };
+
+#endif // MS_MSG_H

@@ -1,4 +1,5 @@
-#pragma once
+#ifndef MS_OS_CONFIG_H
+#define MS_OS_CONFIG_H
 
 #include <arpa/inet.h>
 #include <fcntl.h>
@@ -21,3 +22,5 @@ using MS_EVENT = epoll_event;
 #define MS_FD_ACCEPT EPOLLIN
 #define MS_FD_CONNECT EPOLLOUT
 #define MS_LAST_ERROR errno
+
+#endif // MS_OS_CONFIG_H

@@ -1,4 +1,5 @@
-#pragma once
+#ifndef MS_HTTP_HANDLER_H
+#define MS_HTTP_HANDLER_H
 #include "MsEvent.h"
 #include "MsHttpMsg.h"
 #include "MsReactor.h"
@@ -36,3 +37,5 @@ private:
 	int m_bufSize;
 	int m_bufOff;
 };
+
+#endif // MS_HTTP_HANDLER_H

@@ -1,4 +1,5 @@
-#pragma once
+#ifndef MS_RTSP_SINK_H
+#define MS_RTSP_SINK_H
 #include "MsLog.h"
 #include "MsMsgDef.h"
 #include "MsResManager.h"
@@ -112,3 +113,5 @@ private:
 	shared_ptr<MsReactor> m_reactor;
 	shared_ptr<MsEvent> m_evt;
 };
+
+#endif // MS_RTSP_SINK_H

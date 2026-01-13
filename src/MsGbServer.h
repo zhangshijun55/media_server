@@ -1,4 +1,5 @@
-#pragma once
+#ifndef MS_GB_SERVER_H
+#define MS_GB_SERVER_H
 #include "MsDevMgr.h"
 #include "MsGbServerHandler.h"
 #include "MsLog.h"
@@ -109,3 +110,5 @@ private:
 	map<int, shared_ptr<GbSessionCtx>> m_gbSessionCtx;
 	map<string, shared_ptr<InviteCtx>> m_inviteCtx;
 };
+
+#endif // MS_GB_SERVER_H

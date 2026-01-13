@@ -1,4 +1,5 @@
-#pragma once
+#ifndef MS_RING_BUFFER_H
+#define MS_RING_BUFFER_H
 #include <algorithm>
 #include <cstring>
 #include <vector>
@@ -37,3 +38,5 @@ public:
 		count = 0;
 	}
 };
+
+#endif // MS_RING_BUFFER_H

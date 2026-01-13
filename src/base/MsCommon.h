@@ -1,4 +1,5 @@
-#pragma once
+#ifndef MS_COMMON_H
+#define MS_COMMON_H
 #include <map>
 #include <memory>
 #include <stdint.h>
@@ -91,3 +92,5 @@ void CvtToHex(unsigned char *in, unsigned char *out);
 void SleepMs(int ms);
 vector<string> SplitString(const string &input, const string &delimiter);
 void GetParam(const char *key, string &value, const string &uri);
+
+#endif // MS_COMMON_H

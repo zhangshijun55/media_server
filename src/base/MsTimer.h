@@ -1,4 +1,5 @@
-#pragma once
+#ifndef MS_TIMER_H
+#define MS_TIMER_H
 
 #include "MsMsg.h"
 #include "MsOsConfig.h"
@@ -50,3 +51,5 @@ private:
 	static mutex m_mutex;
 	static condition_variable m_condiVar;
 };
+
+#endif // MS_TIMER_H

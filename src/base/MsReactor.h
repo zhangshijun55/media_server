@@ -1,4 +1,5 @@
-#pragma once
+#ifndef MS_REACTOR_H
+#define MS_REACTOR_H
 #include "MsEvent.h"
 #include "MsMsg.h"
 #include <map>
@@ -84,3 +85,5 @@ private:
 	static unique_ptr<MsReactorMgr> m_manager;
 	static mutex m_mutex;
 };
+
+#endif // MS_REACTOR_H

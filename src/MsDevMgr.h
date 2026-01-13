@@ -1,4 +1,5 @@
-#pragma once
+#ifndef MS_DEV_MGR_H
+#define MS_DEV_MGR_H
 
 #include "MsCommon.h"
 #include "nlohmann/json.hpp"
@@ -144,3 +145,5 @@ private:
 	static unique_ptr<MsDevMgr> m_instance;
 	static mutex m_mutex;
 };
+
+#endif // MS_DEV_MGR_H

@@ -1,4 +1,5 @@
-#pragma once
+#ifndef MS_SOURCE_FACTORY_H
+#define MS_SOURCE_FACTORY_H
 #include "MsMediaSource.h"
 
 class MsSourceFactory {
@@ -11,3 +12,5 @@ public:
 	static std::shared_ptr<MsMediaSource> CreateGbvodSource(const std::string &streamID,
 	                                                        const std::string &streamInfo);
 };
+
+#endif // MS_SOURCE_FACTORY_H

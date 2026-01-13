@@ -1,4 +1,5 @@
-#pragma once
+#ifndef MS_RTSP_SOURCE_H
+#define MS_RTSP_SOURCE_H
 #include "MsMediaSource.h"
 #include "MsMsgDef.h"
 
@@ -18,3 +19,5 @@ private:
 private:
 	std::string m_url;
 };
+
+#endif // MS_RTSP_SOURCE_H

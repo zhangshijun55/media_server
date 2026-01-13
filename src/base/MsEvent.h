@@ -1,4 +1,5 @@
-#pragma once
+#ifndef MS_EVENT_H
+#define MS_EVENT_H
 #include "MsSocket.h"
 #include <memory>
 
@@ -31,3 +32,5 @@ private:
 	shared_ptr<MsSocket> m_sock;
 	shared_ptr<MsEventHandler> m_handler;
 };
+
+#endif // MS_EVENT_H

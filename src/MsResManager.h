@@ -1,4 +1,5 @@
-#pragma once
+#ifndef MS_RES_MANAGER_H
+#define MS_RES_MANAGER_H
 
 #include "MsMediaSource.h"
 #include <map>
@@ -29,3 +30,5 @@ private:
 	std::mutex m_mapMutex;
 	std::map<std::string, std::shared_ptr<MsMediaSource>> m_mediaSources;
 };
+
+#endif // MS_RES_MANAGER_H

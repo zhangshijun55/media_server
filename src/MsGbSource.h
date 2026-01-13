@@ -1,4 +1,5 @@
-#pragma once
+#ifndef MS_GB_SOURCE_H
+#define MS_GB_SOURCE_H
 #include "MsCommon.h"
 #include "MsMediaSource.h"
 #include "MsMsgDef.h"
@@ -51,3 +52,5 @@ private:
 	SGbContext *m_ctx;
 	shared_ptr<MsSocket> m_rtpSock; // for tcp active
 };
+
+#endif // MS_GB_SOURCE_H

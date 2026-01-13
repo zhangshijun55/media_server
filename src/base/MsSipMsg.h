@@ -1,4 +1,5 @@
-#pragma once
+#ifndef MS_SIP_MSG_H
+#define MS_SIP_MSG_H
 
 #include "MsCommon.h"
 #include "MsInetAddr.h"
@@ -90,3 +91,5 @@ int SendSipMsg(MsSipMsg &msg, shared_ptr<MsSocket> s, string ip, int port);
 int SendSipMsg(MsSipMsg &msg, shared_ptr<MsSocket> s, MsInetAddr &addr);
 void BuildSipMsg(const string &fromIP, int fromPort, const string &fromID, const string &toIP,
                  int toPort, const string &toID, int cseq, const string &method, MsSipMsg &sipMsg);
+
+#endif // MS_SIP_MSG_H

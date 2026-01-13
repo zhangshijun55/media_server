@@ -368,7 +368,7 @@ void MsHttpSink::OnStreamPacket(AVPacket *pkt) {
 			this->OnStreamPacket(apkt);
 		} else {
 			// drop pkt
-			MS_LOG_WARN("treamID:%s, sinkID:%d drop buffered audio pkt, ori_ms:%lld "
+			MS_LOG_WARN("StreamID:%s, sinkID:%d drop buffered audio pkt, ori_ms:%lld "
 			            "apkt_ms:%lld diff:%lld",
 			            m_streamID.c_str(), m_sinkID, ori_ms, apkt_ms, diff);
 		}

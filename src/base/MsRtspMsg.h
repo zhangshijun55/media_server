@@ -1,4 +1,5 @@
-#pragma once
+#ifndef MS_RTSP_MSG_H
+#define MS_RTSP_MSG_H
 
 #include "MsCommon.h"
 
@@ -24,3 +25,5 @@ public:
 };
 
 int SendRtspMsg(MsRtspMsg &msg, MsSocket *s);
+
+#endif // MS_RTSP_MSG_H

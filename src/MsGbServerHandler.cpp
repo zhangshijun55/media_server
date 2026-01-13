@@ -52,6 +52,7 @@ void MsGbServerHandler::HandleRead(shared_ptr<MsEvent> evt) {
 			return;
 		}
 
+		// TODO: tcpdump invalid msg
 		if (!CheckVaildHeader(p2)) {
 			MS_LOG_DEBUG("gb server invalid msg:%s", p2);
 			m_bufOff = 0;

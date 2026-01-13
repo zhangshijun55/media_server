@@ -1,4 +1,5 @@
-#pragma once
+#ifndef MS_HTTP_MSG_H
+#define MS_HTTP_MSG_H
 #include "MsCommon.h"
 
 class MsSocket;
@@ -25,3 +26,5 @@ void SendHttpRsp(MsSocket *sock, const string &rspBody);
 void SendHttpRsp(MsSocket *sock, MsHttpMsg &rsp);
 void SendHttpRspEx(MsSocket *sock, const string &rspBody);
 void SendHttpRspEx(MsSocket *sock, MsHttpMsg &rsp);
+
+#endif // MS_HTTP_MSG_H

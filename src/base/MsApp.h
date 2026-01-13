@@ -1,4 +1,5 @@
-#pragma once
+#ifndef MS_APP_H
+#define MS_APP_H
 
 #include <condition_variable>
 #include <memory>
@@ -21,3 +22,5 @@ private:
 	static mutex m_mutex;
 	static condition_variable m_condiVar;
 };
+
+#endif // MS_APP_H

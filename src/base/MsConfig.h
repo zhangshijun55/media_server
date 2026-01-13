@@ -1,4 +1,5 @@
-#pragma once
+#ifndef MS_CONFIG_H
+#define MS_CONFIG_H
 #include <condition_variable>
 #include <memory>
 #include <mutex>
@@ -25,3 +26,5 @@ private:
 	static unique_ptr<MsConfig> m_config;
 	static mutex m_mutex;
 };
+
+#endif // MS_CONFIG_H

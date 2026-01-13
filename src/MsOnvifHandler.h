@@ -1,4 +1,5 @@
-#pragma once
+#ifndef MS_ONVIF_HANDLER_H
+#define MS_ONVIF_HANDLER_H
 #include "MsDevMgr.h"
 #include "MsReactor.h"
 
@@ -43,3 +44,5 @@ public:
 	string m_profile;
 	string m_rtsp;
 };
+
+#endif // MS_ONVIF_HANDLER_H

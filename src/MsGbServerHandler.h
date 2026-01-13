@@ -1,4 +1,5 @@
-#pragma once
+#ifndef MS_GB_SERVER_HANDLER_H
+#define MS_GB_SERVER_HANDLER_H
 #include "MsEvent.h"
 #include "MsInetAddr.h"
 #include "MsReactor.h"
@@ -51,3 +52,5 @@ private:
 	int m_bufOff;
 	MsInetAddr m_recvAddr;
 };
+
+#endif // MS_GB_SERVER_HANDLER_H

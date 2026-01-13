@@ -1,4 +1,5 @@
-#pragma once
+#ifndef MS_LOG_H
+#define MS_LOG_H
 #include "MsOsConfig.h"
 
 #include <condition_variable>
@@ -60,3 +61,5 @@ static const char *logLevel[] = {"ERROR", "WARN", "INFO", "DEBUG", "VERBS"};
 #define MS_LOG_ERROR(FORMAT_STRING, ...) MS_LOG(LOG_LEVEL_ERROR, FORMAT_STRING, ##__VA_ARGS__)
 #define MS_LOG_DEBUG(FORMAT_STRING, ...) MS_LOG(LOG_LEVEL_DEBUG, FORMAT_STRING, ##__VA_ARGS__)
 #define MS_LOG_VERBS(FORMAT_STRING, ...) MS_LOG(LOG_LEVEL_VERBS, FORMAT_STRING, ##__VA_ARGS__)
+
+#endif // MS_LOG_H
