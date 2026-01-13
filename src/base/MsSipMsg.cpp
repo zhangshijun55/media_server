@@ -1,8 +1,8 @@
 #include "MsSipMsg.h"
 #include "MsLog.h"
+#include "MsMd5.h"
 #include "MsOsConfig.h"
 #include "MsSocket.h"
-#include "osip2/osip_md5.h"
 #include <string.h>
 #include <time.h>
 
@@ -467,31 +467,31 @@ bool AuthValid(MsComAuth &sipAuth, string &method, string pass) {
 	unsigned char res_hex[32];
 
 	unsigned char c1 = ':';
-	osip_MD5_CTX md5_ctx;
+	Ms_MD5_CTX md5_ctx;
 
-	osip_MD5Init(&md5_ctx);
-	osip_MD5Update(&md5_ctx, (unsigned char *)username.data(), username.size());
-	osip_MD5Update(&md5_ctx, &c1, 1);
-	osip_MD5Update(&md5_ctx, (unsigned char *)realm.data(), realm.size());
-	osip_MD5Update(&md5_ctx, &c1, 1);
-	osip_MD5Update(&md5_ctx, (unsigned char *)pass.data(), pass.size());
-	osip_MD5Final(ha1, &md5_ctx);
+	Ms_MD5Init(&md5_ctx);
+	Ms_MD5Update(&md5_ctx, (unsigned char *)username.data(), username.size());
+	Ms_MD5Update(&md5_ctx, &c1, 1);
+	Ms_MD5Update(&md5_ctx, (unsigned char *)realm.data(), realm.size());
+	Ms_MD5Update(&md5_ctx, &c1, 1);
+	Ms_MD5Update(&md5_ctx, (unsigned char *)pass.data(), pass.size());
+	Ms_MD5Final(ha1, &md5_ctx);
 	CvtToHex(ha1, ha1_hex);
 
-	osip_MD5Init(&md5_ctx);
-	osip_MD5Update(&md5_ctx, (unsigned char *)method.data(), method.size());
-	osip_MD5Update(&md5_ctx, &c1, 1);
-	osip_MD5Update(&md5_ctx, (unsigned char *)uri.data(), uri.size());
-	osip_MD5Final(ha2, &md5_ctx);
+	Ms_MD5Init(&md5_ctx);
+	Ms_MD5Update(&md5_ctx, (unsigned char *)method.data(), method.size());
+	Ms_MD5Update(&md5_ctx, &c1, 1);
+	Ms_MD5Update(&md5_ctx, (unsigned char *)uri.data(), uri.size());
+	Ms_MD5Final(ha2, &md5_ctx);
 	CvtToHex(ha2, ha2_hex);
 
-	osip_MD5Init(&md5_ctx);
-	osip_MD5Update(&md5_ctx, ha1_hex, 32);
-	osip_MD5Update(&md5_ctx, &c1, 1);
-	osip_MD5Update(&md5_ctx, (unsigned char *)nonce.data(), nonce.size());
-	osip_MD5Update(&md5_ctx, &c1, 1);
-	osip_MD5Update(&md5_ctx, ha2_hex, 32);
-	osip_MD5Final(res, &md5_ctx);
+	Ms_MD5Init(&md5_ctx);
+	Ms_MD5Update(&md5_ctx, ha1_hex, 32);
+	Ms_MD5Update(&md5_ctx, &c1, 1);
+	Ms_MD5Update(&md5_ctx, (unsigned char *)nonce.data(), nonce.size());
+	Ms_MD5Update(&md5_ctx, &c1, 1);
+	Ms_MD5Update(&md5_ctx, ha2_hex, 32);
+	Ms_MD5Final(res, &md5_ctx);
 	CvtToHex(res, res_hex);
 
 	return 0 == memcmp(response.c_str(), res_hex, 32);

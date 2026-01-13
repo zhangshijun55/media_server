@@ -66,11 +66,11 @@ typedef struct {
 	UINT4 state[4];           /* state (ABCD) */
 	UINT4 count[2];           /* number of bits, modulo 2^64 (lsb first) */
 	unsigned char buffer[64]; /* input buffer */
-} osip_MD5_CTX;
+} Ms_MD5_CTX;
 
-void osip_MD5Init PROTO_LIST((osip_MD5_CTX *));
-void osip_MD5Update PROTO_LIST((osip_MD5_CTX *, unsigned char *, unsigned int));
-void osip_MD5Final PROTO_LIST((unsigned char[16], osip_MD5_CTX *));
+void Ms_MD5Init PROTO_LIST((Ms_MD5_CTX *));
+void Ms_MD5Update PROTO_LIST((Ms_MD5_CTX *, unsigned char *, unsigned int));
+void Ms_MD5Final PROTO_LIST((unsigned char[16], Ms_MD5_CTX *));
 
 #ifdef __cplusplus
 }

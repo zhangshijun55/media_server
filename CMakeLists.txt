@@ -50,7 +50,6 @@ set(MAIN_SOURCES
     src/MsRtspSink.cpp
     src/tinyxml2/tinyxml2.cpp
     src/sqlite/sqlite3.c
-    src/osip2/osip_md5c.c
 )
 
 # Add source files from src/base directory
@@ -70,6 +69,7 @@ set(BASE_SOURCES
     src/base/MsSocket.cpp
     src/base/MsTimer.cpp
     src/base/MsRingBuffer.cpp
+    src/base/MsMd5.c
 )
 
 if(ENABLE_RTC)
