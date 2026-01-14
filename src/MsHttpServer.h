@@ -21,7 +21,6 @@ public:
 	void HandleHttpReq(shared_ptr<MsEvent> evt, MsHttpMsg &msg, char *body, int len);
 
 private:
-	void OnGenHttpRsp(MsMsg &msg);
 	void OnNodeTimer();
 	void ProbeOnvif(string &devid, int sid);
 

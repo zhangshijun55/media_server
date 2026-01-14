@@ -2,6 +2,7 @@
 #define MS_ONVIF_HANDLER_H
 #include "MsDevMgr.h"
 #include "MsReactor.h"
+#include <future>
 
 class MsOnvifHandler : public MsEventHandler {
 public:
@@ -13,7 +14,8 @@ public:
 
 	static void OnvifPtzControl(string user, string passwd, string url, string profile,
 	                            string presetID, int cmd, int ttout);
-	static void QueryPreset(string user, string passwd, string url, string profile, int nseq);
+	static void QueryPreset(string user, string passwd, string url, string profile,
+	                        shared_ptr<promise<string>> prom);
 
 public:
 	enum {

@@ -9,6 +9,7 @@
 #include "MsMsgDef.h"
 #include "MsOsConfig.h"
 #include "MsRtspSink.h"
+#include "MsThreadPool.h"
 #include "MsTimer.h"
 
 #if ENABLE_RTC
@@ -18,6 +19,7 @@
 int main(int argc, char *argv[]) {
 	signal(SIGPIPE, SIG_IGN);
 
+	MsThreadPool::Instance().spawn(4);
 	MsConfig *config = MsConfig::Instance();
 	config->LoadConfig();
 

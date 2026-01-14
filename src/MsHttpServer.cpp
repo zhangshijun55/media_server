@@ -5,6 +5,7 @@
 #include "MsHttpHandler.h"
 #include "MsLog.h"
 #include "MsPortAllocator.h"
+#include "MsThreadPool.h"
 #include <fstream>
 #include <thread>
 
@@ -101,49 +102,61 @@ void MsHttpServer::Run() {
 }
 
 void MsHttpServer::QueryPreset(shared_ptr<MsEvent> evt, MsHttpMsg &msg, char *body, int len) {
-	try {
-		json ji = json::parse(body);
-		string devId = ji["deviceId"].get<string>();
+	string devId;
+	GetParam("deviceId", devId, msg.m_uri);
 
-		shared_ptr<MsGbDevice> dev = MsDevMgr::Instance()->FindDevice(devId);
-		if (!dev.get()) {
-			MS_LOG_WARN("dev:%s not exist", devId.c_str());
+	if (devId.empty()) {
+		try {
+			json ji = json::parse(body);
+			devId = ji["deviceId"].get<string>();
+		} catch (json::exception &e) {
+			MS_LOG_WARN("json err:%s", e.what());
 			json rsp;
 			rsp["code"] = 1;
-			rsp["msg"] = "dev not exist";
-			SendHttpRsp(evt->GetSocket(), rsp.dump());
-		}
-
-		if (dev->m_protocol == GB_DEV) {
-			MsMsg qr;
-			qr.m_msgID = MS_QUERY_PRESET;
-			qr.m_strVal = devId;
-			qr.m_sessinID = ++m_seqID;
-			qr.m_dstType = MS_GB_SERVER;
-			qr.m_dstID = 1;
-			this->PostMsg(qr);
-		} else if ((dev->m_protocol == RTSP_DEV || dev->m_protocol == ONVIF_DEV) &&
-		           dev->m_onvifptzurl.size() && dev->m_onvifprofile.size()) {
-			thread ptzx(MsOnvifHandler::QueryPreset, dev->m_user, dev->m_pass, dev->m_onvifptzurl,
-			            dev->m_onvifprofile, ++m_seqID);
-			ptzx.detach();
-		} else {
-			MS_LOG_WARN("dev:%s not support preset query", devId.c_str());
-			json rsp;
-			rsp["code"] = 1;
-			rsp["msg"] = "dev not support preset query";
+			rsp["msg"] = "json error";
 			SendHttpRsp(evt->GetSocket(), rsp.dump());
 			return;
 		}
+	}
 
-		m_evts.emplace(m_seqID, evt);
-	} catch (json::exception &e) {
-		MS_LOG_WARN("json err:%s", e.what());
+	shared_ptr<MsGbDevice> dev = MsDevMgr::Instance()->FindDevice(devId);
+	if (!dev) {
+		MS_LOG_WARN("dev:%s not exist", devId.c_str());
 		json rsp;
 		rsp["code"] = 1;
-		rsp["msg"] = "json error";
+		rsp["msg"] = "dev not exist";
 		SendHttpRsp(evt->GetSocket(), rsp.dump());
+		return;
 	}
+
+	shared_ptr<promise<string>> prom = make_shared<promise<string>>();
+
+	if (dev->m_protocol == GB_DEV) {
+		MsMsg qr;
+		qr.m_msgID = MS_QUERY_PRESET;
+		qr.m_strVal = devId;
+		qr.m_sessinID = ++m_seqID;
+		qr.m_dstType = MS_GB_SERVER;
+		qr.m_dstID = 1;
+		qr.m_any = prom;
+		this->PostMsg(qr);
+	} else if ((dev->m_protocol == RTSP_DEV || dev->m_protocol == ONVIF_DEV) &&
+	           dev->m_onvifptzurl.size() && dev->m_onvifprofile.size()) {
+
+		MsThreadPool::Instance().enqueue(MsOnvifHandler::QueryPreset, dev->m_user, dev->m_pass,
+		                                 dev->m_onvifptzurl, dev->m_onvifprofile, prom);
+	} else {
+		MS_LOG_WARN("dev:%s not support preset query", devId.c_str());
+		json rsp;
+		rsp["code"] = 1;
+		rsp["msg"] = "dev not support preset query";
+		SendHttpRsp(evt->GetSocket(), rsp.dump());
+		return;
+	}
+
+	std::future<string> fut = prom->get_future();
+	MsThreadPool::Instance().enqueue(
+	    [fut = std::move(fut), evt]() mutable { SendHttpRsp(evt->GetSocket(), fut.get()); });
 }
 
 void MsHttpServer::FileUpload(shared_ptr<MsEvent> evt, MsHttpMsg &msg, char *body, int len) {
@@ -544,8 +557,15 @@ void MsHttpServer::QueryRecord(shared_ptr<MsEvent> evt, MsHttpMsg &msg, char *bo
 		qr.m_dstType = MS_GB_SERVER;
 		qr.m_dstID = 1;
 		qr.m_sessinID = ++m_seqID;
+
+		shared_ptr<promise<string>> prom = make_shared<promise<string>>();
+		qr.m_any = prom;
 		this->PostMsg(qr);
-		m_evts.emplace(m_seqID, evt);
+
+		std::future<string> fut = prom->get_future();
+		MsThreadPool::Instance().enqueue(
+		    [fut = std::move(fut), evt]() mutable { SendHttpRsp(evt->GetSocket(), fut.get()); });
+
 	} catch (json::exception &e) {
 		MS_LOG_WARN("json err:%s", e.what());
 		json rsp;
@@ -728,22 +748,8 @@ void MsHttpServer::GetGbServer(shared_ptr<MsEvent> evt, MsHttpMsg &msg, char *bo
 	SendHttpRsp(evt->GetSocket(), rsp.dump());
 }
 
-void MsHttpServer::OnGenHttpRsp(MsMsg &msg) {
-	auto it = m_evts.find(msg.m_sessinID);
-
-	if (it != m_evts.end()) {
-		shared_ptr<MsEvent> evt = it->second;
-		SendHttpRsp(evt->GetSocket(), msg.m_strVal);
-		m_evts.erase(it);
-	}
-}
-
 void MsHttpServer::HandleMsg(MsMsg &msg) {
 	switch (msg.m_msgID) {
-	case MS_GEN_HTTP_RSP:
-		this->OnGenHttpRsp(msg);
-		break;
-
 	case MS_MEDIA_NODE_TIMER:
 		this->OnNodeTimer();
 		break;
@@ -1100,8 +1106,16 @@ void MsHttpServer::GetRegistDomain(shared_ptr<MsEvent> evt, MsHttpMsg &msg, char
 	qr.m_msgID = MS_GET_REGIST_DOMAIN;
 	qr.m_dstType = MS_GB_SERVER;
 	qr.m_dstID = 1;
+
+	shared_ptr<std::promise<string>> prom = make_shared<std::promise<string>>();
+	std::future<string> fut = prom->get_future();
+	qr.m_any = prom;
 	this->PostMsg(qr);
-	m_evts[qr.m_sessinID] = evt;
+
+	MsThreadPool::Instance().enqueue([evt, fut = std::move(fut)]() mutable {
+		string rsp = fut.get();
+		SendHttpRsp(evt->GetSocket(), rsp);
+	});
 }
 
 void MsHttpServer::GetMediaNode(shared_ptr<MsEvent> evt, MsHttpMsg &msg, char *body, int len) {

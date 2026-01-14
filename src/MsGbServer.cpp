@@ -4,6 +4,7 @@
 #include "MsGbServerHandler.h"
 #include "MsMsgDef.h"
 #include "MsPortAllocator.h"
+#include <future>
 #include <thread>
 
 MsGbServer::MsGbServer(int type, int id) : MsIGbServer(type, id), m_cseq(0) {}
@@ -556,17 +557,9 @@ void MsGbServer::HandleRecord(XMLElement *root, const char *deviceID) {
 			ctx->m_record["result"] = json::array();
 		}
 
-		MsMsg msRsp;
 		MsMsg &msg = ctx->m_req;
-
-		msRsp.m_msgID = MS_GEN_HTTP_RSP;
-		msRsp.m_sessinID = msg.m_sessinID;
-		msRsp.m_dstType = msg.m_srcType;
-		msRsp.m_dstID = msg.m_srcID;
-		msRsp.m_strVal = ctx->m_record.dump();
-		msRsp.m_intVal = msg.m_msgID;
-
-		this->PostMsg(msRsp);
+		auto proms = std::any_cast<shared_ptr<std::promise<string>>>(msg.m_any);
+		proms->set_value(ctx->m_record.dump());
 
 		this->DelTimer(ctx->m_timer);
 		m_gbSessionCtx.erase(nSn);
@@ -903,16 +896,8 @@ void MsGbServer::HandlePreset(XMLElement *root, const char *deviceID) {
 		item = item->NextSiblingElement();
 	}
 
-	MsMsg msRsp;
-	MsMsg &msg = ctx->m_req;
-
-	msRsp.m_msgID = MS_GEN_HTTP_RSP;
-	msRsp.m_sessinID = msg.m_sessinID;
-	msRsp.m_dstType = msg.m_srcType;
-	msRsp.m_dstID = msg.m_srcID;
-	msRsp.m_strVal = rsp.dump();
-
-	this->PostMsg(msRsp);
+	auto prom = std::any_cast<shared_ptr<std::promise<string>>>(ctx->m_req.m_any);
+	prom->set_value(rsp.dump());
 
 	this->DelTimer(ctx->m_timer);
 	m_gbSessionCtx.erase(nSn);
@@ -1047,16 +1032,8 @@ void MsGbServer::InitRecordInfo(MsMsg &msg) {
 
 	} while (0);
 
-	MsMsg msRsp;
-
-	msRsp.m_msgID = MS_GEN_HTTP_RSP;
-	msRsp.m_sessinID = msg.m_sessinID;
-	msRsp.m_dstType = msg.m_srcType;
-	msRsp.m_dstID = msg.m_srcID;
-	msRsp.m_strVal = jRsp.dump();
-	msRsp.m_intVal = msg.m_msgID;
-
-	this->PostMsg(msRsp);
+	auto prom = std::any_cast<shared_ptr<promise<string>>>(msg.m_any);
+	prom->set_value(jRsp.dump());
 }
 
 void MsGbServer::QueryPreset(MsMsg &msg) {
@@ -1114,15 +1091,8 @@ void MsGbServer::QueryPreset(MsMsg &msg) {
 
 	} while (0);
 
-	MsMsg msRsp;
-
-	msRsp.m_msgID = MS_GEN_HTTP_RSP;
-	msRsp.m_sessinID = msg.m_sessinID;
-	msRsp.m_dstType = msg.m_srcType;
-	msRsp.m_dstID = msg.m_srcID;
-	msRsp.m_strVal = jRsp.dump();
-
-	this->PostMsg(msRsp);
+	auto prom = std::any_cast<shared_ptr<promise<string>>>(msg.m_any);
+	prom->set_value(jRsp.dump());
 }
 
 void MsGbServer::QueryPresetTimeout(int sn) {
@@ -1132,19 +1102,13 @@ void MsGbServer::QueryPresetTimeout(int sn) {
 	if (it != m_gbSessionCtx.end()) {
 		shared_ptr<GbSessionCtx> &x = it->second;
 		MsMsg &msg = x->m_req;
-		MsMsg msRsp;
 		json jRsp;
 
 		jRsp["code"] = 1;
 		jRsp["msg"] = "querypreset time out";
 
-		msRsp.m_msgID = MS_GEN_HTTP_RSP;
-		msRsp.m_sessinID = msg.m_sessinID;
-		msRsp.m_dstType = msg.m_srcType;
-		msRsp.m_dstID = msg.m_srcID;
-		msRsp.m_strVal = jRsp.dump();
-
-		this->PostMsg(msRsp);
+		auto prom = std::any_cast<shared_ptr<promise<string>>>(msg.m_any);
+		prom->set_value(jRsp.dump());
 
 		m_gbSessionCtx.erase(it);
 	}
@@ -1398,21 +1362,13 @@ void MsGbServer::OnRecordTimeout(int sn) {
 	if (it != m_gbSessionCtx.end()) {
 		shared_ptr<GbSessionCtx> &x = it->second;
 		MsMsg &msg = x->m_req;
-		MsMsg msRsp;
-
 		json jRsp;
 
 		jRsp["code"] = 1;
 		jRsp["msg"] = "init record time out";
 
-		msRsp.m_msgID = MS_GEN_HTTP_RSP;
-		msRsp.m_sessinID = msg.m_sessinID;
-		msRsp.m_dstType = msg.m_srcType;
-		msRsp.m_dstID = msg.m_srcID;
-		msRsp.m_strVal = jRsp.dump();
-		msRsp.m_intVal = msg.m_msgID;
-
-		this->PostMsg(msRsp);
+		auto prom = std::any_cast<shared_ptr<promise<string>>>(msg.m_any);
+		prom->set_value(jRsp.dump());
 
 		m_gbSessionCtx.erase(it);
 	}
@@ -1457,13 +1413,8 @@ void MsGbServer::GetRegistDomain(MsMsg &msg) {
 		j["result"].emplace_back(dd);
 	}
 
-	MsMsg rsp;
-	rsp.m_msgID = MS_GEN_HTTP_RSP;
-	rsp.m_sessinID = msg.m_sessinID;
-	rsp.m_dstType = msg.m_srcType;
-	rsp.m_dstID = msg.m_srcID;
-	rsp.m_strVal = j.dump();
-	this->PostMsg(rsp);
+	auto prom = std::any_cast<shared_ptr<promise<string>>>(msg.m_any);
+	prom->set_value(j.dump());
 }
 
 void MsGbServer::InitInvite(MsMsg &msg) {

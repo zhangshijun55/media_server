@@ -70,6 +70,7 @@ set(BASE_SOURCES
     src/base/MsRingBuffer.cpp
     src/base/MsMd5.c
     src/base/MsSha1.cpp
+    src/base/MsThreadPool.cpp
 )
 
 if(ENABLE_RTC)

@@ -289,17 +289,12 @@ void MsOnvifHandler::OnvifPtzControl(string user, string passwd, string url, str
 	MS_LOG_DEBUG("ptz:%d finish", cmd);
 }
 
-void MsOnvifHandler::QueryPreset(string user, string passwd, string url, string profile, int nseq) {
+void MsOnvifHandler::QueryPreset(string user, string passwd, string url, string profile,
+                                 shared_ptr<promise<string>> prom) {
 	json rsp;
 	rsp["code"] = 0;
 	rsp["msg"] = "ok";
 	rsp["result"] = json::array();
-
-	MsMsg msRsp;
-	msRsp.m_msgID = MS_GEN_HTTP_RSP;
-	msRsp.m_sessinID = nseq;
-	msRsp.m_dstType = MS_HTTP_SERVER;
-	msRsp.m_dstID = 1;
 
 	string ip, uri;
 	int port;
@@ -308,9 +303,7 @@ void MsOnvifHandler::QueryPreset(string user, string passwd, string url, string 
 		MS_LOG_ERROR("url err:%s", url.c_str());
 		rsp["code"] = 1;
 		rsp["msg"] = "url err";
-		msRsp.m_strVal = rsp.dump();
-		MsReactorMgr::Instance()->PostMsg(msRsp);
-
+		prom->set_value(rsp.dump());
 		return;
 	}
 
@@ -322,9 +315,7 @@ void MsOnvifHandler::QueryPreset(string user, string passwd, string url, string 
 		MS_LOG_ERROR("connect err:%s", host.c_str());
 		rsp["code"] = 1;
 		rsp["msg"] = "connect err";
-		msRsp.m_strVal = rsp.dump();
-		MsReactorMgr::Instance()->PostMsg(msRsp);
-
+		prom->set_value(rsp.dump());
 		return;
 	}
 
@@ -368,8 +359,7 @@ void MsOnvifHandler::QueryPreset(string user, string passwd, string url, string 
 		MS_LOG_ERROR("send err:%s", strReq.c_str());
 		rsp["code"] = 1;
 		rsp["msg"] = "send err";
-		msRsp.m_strVal = rsp.dump();
-		MsReactorMgr::Instance()->PostMsg(msRsp);
+		prom->set_value(rsp.dump());
 		return;
 	}
 
@@ -412,8 +402,7 @@ void MsOnvifHandler::QueryPreset(string user, string passwd, string url, string 
 		}
 	}
 
-	msRsp.m_strVal = rsp.dump();
-	MsReactorMgr::Instance()->PostMsg(msRsp);
+	prom->set_value(rsp.dump());
 }
 
 void MsOnvifHandler::proc_s1(shared_ptr<MsEvent> evt) {
