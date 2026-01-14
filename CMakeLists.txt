@@ -31,7 +31,6 @@ pkg_search_module(SQLITE3 REQUIRED IMPORTED_TARGET sqlite3)
 # Add source files from src directory
 set(MAIN_SOURCES
     src/MediaServer.cpp
-    src/MsSha1.cpp
     src/MsDbMgr.cpp
     src/MsDevMgr.cpp
     src/MsFileSource.cpp
@@ -70,6 +69,7 @@ set(BASE_SOURCES
     src/base/MsTimer.cpp
     src/base/MsRingBuffer.cpp
     src/base/MsMd5.c
+    src/base/MsSha1.cpp
 )
 
 if(ENABLE_RTC)
