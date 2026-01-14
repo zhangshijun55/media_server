@@ -200,14 +200,14 @@ void GbkToUtf8(string &strSrc, const char *src_str) {
 		return;
 	}
 
-	char *ss = (char *)malloc(sn + 1);
-	strcpy(ss, src_str);
+	unique_ptr<char[]> ss = make_unique<char[]>(sn + 1);
+	strcpy(ss.get(), src_str);
 
 	size_t dn = 30 * sn + 1;
-	char *dd = (char *)malloc(dn);
+	unique_ptr<char[]> dd = make_unique<char[]>(dn);
 
-	char *ss1 = ss;
-	char *dd1 = dd;
+	char *ss1 = ss.get();
+	char *dd1 = dd.get();
 
 	char **pin = &ss1;
 	char **pout = &dd1;
@@ -221,10 +221,7 @@ void GbkToUtf8(string &strSrc, const char *src_str) {
 	iconv_close(cd);
 	**pout = '\0';
 
-	strSrc = dd;
-
-	free(ss);
-	free(dd);
+	strSrc = dd.get();
 }
 
 time_t StrTimeToUnixTime(string &timeStamp) {

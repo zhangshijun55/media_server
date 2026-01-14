@@ -1151,12 +1151,17 @@ void MsGbServer::QueryPresetTimeout(int sn) {
 }
 
 void MsGbServer::PtzControl(MsMsg &msg) {
-	SPtzCmd *pp = static_cast<SPtzCmd *>(msg.m_ptr);
+	shared_ptr<SPtzCmd> pp;
+	try {
+		pp = std::any_cast<shared_ptr<SPtzCmd>>(msg.m_any);
+	} catch (std::bad_any_cast &e) {
+		MS_LOG_WARN("ptz control bad any cast:%s", e.what());
+		return;
+	}
 
 	string devID = pp->m_devid;
 	int nCmd = pp->m_ptzCmd;
 	int timeout = pp->m_timeout;
-	delete pp;
 
 	int p1 = 165;
 	int p2 = 15;
@@ -1462,7 +1467,21 @@ void MsGbServer::GetRegistDomain(MsMsg &msg) {
 }
 
 void MsGbServer::InitInvite(MsMsg &msg) {
-	SGbContext *p = static_cast<SGbContext *>(msg.m_ptr);
+	shared_ptr<SGbContext> p;
+
+	try {
+		p = std::any_cast<shared_ptr<SGbContext>>(msg.m_any);
+	} catch (std::bad_any_cast &e) {
+		MS_LOG_WARN("init invite bad any cast:%s", e.what());
+		MsMsg iRsp;
+		iRsp.m_msgID = MS_INVITE_CALL_RSP;
+		iRsp.m_dstType = msg.m_srcType;
+		iRsp.m_dstID = msg.m_srcID;
+		iRsp.m_intVal = 1;
+		iRsp.m_strVal = "bad any cast";
+		this->PostMsg(iRsp);
+		return;
+	}
 
 	string &reqID = p->gbID;
 	int &transport = p->transport;

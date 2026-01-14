@@ -22,7 +22,7 @@ void MsHttpSink::HandleWrite(shared_ptr<MsEvent> evt) {
 
 	while (m_queData.size()) {
 		SData &sd = m_queData.front();
-		uint8_t *pBuf = sd.m_buf;
+		uint8_t *pBuf = sd.m_uBuf.get();
 
 		while (sd.m_len > 0) {
 			int psend = 0;
@@ -35,8 +35,8 @@ void MsHttpSink::HandleWrite(shared_ptr<MsEvent> evt) {
 			if (ret >= 0) {
 				// do nothing, handled in psend
 			} else if (ret == MS_TRY_AGAIN) {
-				if (pBuf != sd.m_buf) {
-					memmove(sd.m_buf, pBuf, sd.m_len);
+				if (pBuf != sd.m_uBuf.get()) {
+					memmove(sd.m_uBuf.get(), pBuf, sd.m_len);
 				}
 				return;
 			} else {
@@ -47,7 +47,6 @@ void MsHttpSink::HandleWrite(shared_ptr<MsEvent> evt) {
 			}
 		}
 
-		delete[] sd.m_buf;
 		std::lock_guard<std::mutex> lock(m_queDataMutex);
 		m_queData.pop();
 	}
@@ -178,13 +177,13 @@ int MsHttpSink::WriteBuffer(const uint8_t *buf, int buf_size) {
 
 	if (m_queData.size()) {
 		SData sd;
-		sd.m_buf = new uint8_t[total_chunk_size];
-		memcpy(sd.m_buf, chunk_header, header_len);
-		memcpy(sd.m_buf + header_len, buf, buf_size);
-		memcpy(sd.m_buf + header_len + buf_size, "\r\n", 2);
+		sd.m_uBuf = std::make_unique<uint8_t[]>(total_chunk_size);
+		memcpy(sd.m_uBuf.get(), chunk_header, header_len);
+		memcpy(sd.m_uBuf.get() + header_len, buf, buf_size);
+		memcpy(sd.m_uBuf.get() + header_len + buf_size, "\r\n", 2);
 		sd.m_len = total_chunk_size;
 		std::lock_guard<std::mutex> lock(m_queDataMutex);
-		m_queData.push(sd);
+		m_queData.emplace(std::move(sd));
 	} else {
 		if (m_sock->BlockSend((const char *)chunk_header, header_len) < 0) {
 			MS_LOG_ERROR("http sink send chunk header failed");
@@ -208,13 +207,13 @@ int MsHttpSink::WriteBuffer(const uint8_t *buf, int buf_size) {
 				// do nothing, handled in psend
 			} else if (ret == MS_TRY_AGAIN) {
 				SData sd;
-				sd.m_buf = new uint8_t[pLen + 2];
-				memcpy(sd.m_buf, pBuf, pLen);
-				memcpy(sd.m_buf + pLen, "\r\n", 2);
+				sd.m_uBuf = std::make_unique<uint8_t[]>(pLen + 2);
+				memcpy(sd.m_uBuf.get(), pBuf, pLen);
+				memcpy(sd.m_uBuf.get() + pLen, "\r\n", 2);
 				sd.m_len = pLen + 2;
 				{
 					std::lock_guard<std::mutex> lock(m_queDataMutex);
-					m_queData.push(sd);
+					m_queData.emplace(std::move(sd));
 				}
 
 				// regist write
@@ -391,8 +390,6 @@ void MsHttpSink::OnStreamPacket(AVPacket *pkt) {
 
 void MsHttpSink::clear_que() {
 	while (m_queData.size()) {
-		SData &sd = m_queData.front();
-		delete[] sd.m_buf;
 		m_queData.pop();
 	}
 	while (m_queAudioPkts.size()) {

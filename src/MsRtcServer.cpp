@@ -14,9 +14,14 @@ void MsRtcServer::Run() {
 void MsRtcServer::HandleMsg(MsMsg &msg) {
 	switch (msg.m_msgID) {
 	case MS_RTC_MSG: {
-		SHttpTransferMsg *rtcMsg = static_cast<SHttpTransferMsg *>(msg.m_ptr);
+		shared_ptr<SHttpTransferMsg> rtcMsg;
+		try {
+			rtcMsg = std::any_cast<shared_ptr<SHttpTransferMsg>>(msg.m_any);
+		} catch (std::bad_any_cast &e) {
+			MS_LOG_WARN("rtc msg bad any cast:%s", e.what());
+			return;
+		}
 		this->RtcProcess(rtcMsg);
-		delete rtcMsg;
 	} break;
 
 	case MS_RTC_PEER_CLOSED: {
@@ -46,7 +51,7 @@ void MsRtcServer::HandleMsg(MsMsg &msg) {
 	}
 }
 
-void MsRtcServer::RtcProcess(SHttpTransferMsg *rtcMsg) {
+void MsRtcServer::RtcProcess(shared_ptr<SHttpTransferMsg> rtcMsg) {
 	// if httpMsg.uri contains "whip" then whip process else return 404
 	if (rtcMsg->httpMsg.m_uri.find("whip") != string::npos) {
 		return this->WhipProcess(rtcMsg);
@@ -128,7 +133,7 @@ void MsRtcServer::RtcProcess(SHttpTransferMsg *rtcMsg) {
 	}
 }
 
-void MsRtcServer::WhipProcess(SHttpTransferMsg *rtcMsg) {
+void MsRtcServer::WhipProcess(shared_ptr<SHttpTransferMsg> rtcMsg) {
 	MsHttpMsg &msg = rtcMsg->httpMsg;
 	shared_ptr<MsSocket> &sock = rtcMsg->sock;
 	string &sdp = rtcMsg->body;

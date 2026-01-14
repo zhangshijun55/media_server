@@ -22,8 +22,8 @@ public:
 	void HandleMsg(MsMsg &msg) override;
 
 private:
-	void RtcProcess(SHttpTransferMsg *rtcMsg);
-	void WhipProcess(SHttpTransferMsg *rtcMsg);
+	void RtcProcess(shared_ptr<SHttpTransferMsg> rtcMsg);
+	void WhipProcess(shared_ptr<SHttpTransferMsg> rtcMsg);
 
 	std::mutex m_mtx;
 	std::map<string, shared_ptr<MsRtcSource>> m_pcMap;

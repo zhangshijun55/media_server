@@ -733,18 +733,8 @@ void MsHttpServer::OnGenHttpRsp(MsMsg &msg) {
 
 	if (it != m_evts.end()) {
 		shared_ptr<MsEvent> evt = it->second;
-
-		if (msg.m_intVal == 1) {
-			SendHttpRspEx(evt->GetSocket(), msg.m_strVal);
-
-			m_evts.erase(it);
-
-			this->DelEvent(evt);
-		} else {
-			SendHttpRsp(evt->GetSocket(), msg.m_strVal);
-
-			m_evts.erase(it);
-		}
+		SendHttpRsp(evt->GetSocket(), msg.m_strVal);
+		m_evts.erase(it);
 	}
 }
 
@@ -1167,7 +1157,7 @@ void MsHttpServer::PtzControl(shared_ptr<MsEvent> evt, MsHttpMsg &msg, char *bod
 
 		if (dev->m_protocol == GB_DEV) {
 			MsMsg qr;
-			SPtzCmd *p = new SPtzCmd;
+			shared_ptr<SPtzCmd> p = make_shared<SPtzCmd>();
 
 			p->m_devid = deviceId;
 			p->m_ptzCmd = ptzCmd;
@@ -1177,7 +1167,7 @@ void MsHttpServer::PtzControl(shared_ptr<MsEvent> evt, MsHttpMsg &msg, char *bod
 			qr.m_msgID = MS_PTZ_CONTROL;
 			qr.m_dstType = MS_GB_SERVER;
 			qr.m_dstID = 1;
-			qr.m_ptr = p;
+			qr.m_any = p;
 
 			this->PostMsg(qr);
 

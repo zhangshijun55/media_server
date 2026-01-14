@@ -9,34 +9,31 @@ class MsRtspHandler : public MsEventHandler {
 public:
 	MsRtspHandler(shared_ptr<MsReactor> reactor, shared_ptr<MsIRtspServer> iServer)
 	    : m_reactor(reactor), m_iServer(iServer), m_bufSize(DEF_BUF_SIZE), m_bufOff(0) {
-		m_buf = (char *)malloc(m_bufSize);
+		m_bufPtr = make_unique<char[]>(m_bufSize);
 	}
 
-	~MsRtspHandler() {
-		MS_LOG_INFO("~MsRtspHandler");
-		free(m_buf);
-	}
+	~MsRtspHandler() { MS_LOG_INFO("~MsRtspHandler"); }
 
 	void HandleRead(shared_ptr<MsEvent> evt) {
 		MsSocket *sock = evt->GetSocket();
 
-		int recv = sock->Recv(m_buf + m_bufOff, m_bufSize - 1 - m_bufOff);
+		int recv = sock->Recv(m_bufPtr.get() + m_bufOff, m_bufSize - 1 - m_bufOff);
 
 		if (recv <= 0) {
 			return;
 		}
 
 		m_bufOff += recv;
-		m_buf[m_bufOff] = '\0';
-		char *p2 = m_buf;
+		m_bufPtr[m_bufOff] = '\0';
+		char *p2 = m_bufPtr.get();
 
 		while (m_bufOff > 0) {
 			if (!IsHeaderComplete(p2)) {
 				if (m_bufOff == m_bufSize - 1) {
-					MS_LOG_ERROR("rtsp header too big:%d %s", m_bufOff, m_buf);
+					MS_LOG_ERROR("rtsp header too big:%d %s", m_bufOff, m_bufPtr.get());
 					m_bufOff = 0;
-				} else if (m_bufOff && p2 != m_buf) {
-					memmove(m_buf, p2, m_bufOff);
+				} else if (m_bufOff && p2 != m_bufPtr.get()) {
+					memmove(m_bufPtr.get(), p2, m_bufOff);
 				}
 
 				return;
@@ -54,14 +51,14 @@ public:
 			if (left < cntLen) {
 				p2 = oriP2;
 
-				if (m_bufOff && p2 != m_buf) {
-					memmove(m_buf, p2, m_bufOff);
+				if (m_bufOff && p2 != m_bufPtr.get()) {
+					memmove(m_bufPtr.get(), p2, m_bufOff);
 				}
 
 				return;
 			}
 
-			MS_LOG_VERBS("recv:%s", m_buf);
+			MS_LOG_VERBS("recv:%s", m_bufPtr.get());
 
 			if (rtspMsg.m_method == "OPTIONS") {
 				ret = m_iServer->HandleOptions(rtspMsg, evt);
@@ -102,7 +99,7 @@ public:
 private:
 	shared_ptr<MsReactor> m_reactor;
 	shared_ptr<MsIRtspServer> m_iServer;
-	char *m_buf;
+	unique_ptr<char[]> m_bufPtr;
 	int m_bufSize;
 	int m_bufOff;
 };
@@ -723,7 +720,7 @@ void MsRtspSink::OnWriteEvent(shared_ptr<MsEvent> evt) {
 
 	while (m_queData.size()) {
 		SData &sd = m_queData.front();
-		uint8_t *pBuf = sd.m_buf;
+		uint8_t *pBuf = sd.m_uBuf.get();
 
 		while (sd.m_len > 0) {
 			int psend = 0;
@@ -736,8 +733,8 @@ void MsRtspSink::OnWriteEvent(shared_ptr<MsEvent> evt) {
 			if (ret >= 0) {
 				// do nothing
 			} else if (ret == MS_TRY_AGAIN) {
-				if (pBuf != sd.m_buf) {
-					memmove(sd.m_buf, pBuf, sd.m_len);
+				if (pBuf != sd.m_uBuf.get()) {
+					memmove(sd.m_uBuf.get(), pBuf, sd.m_len);
 				}
 				return;
 			} else {
@@ -748,7 +745,6 @@ void MsRtspSink::OnWriteEvent(shared_ptr<MsEvent> evt) {
 			}
 		}
 
-		delete[] sd.m_buf;
 		std::lock_guard<std::mutex> lock(m_queDataMutex);
 		m_queData.pop();
 	}
@@ -771,12 +767,12 @@ int MsRtspSink::WriteBuffer(const uint8_t *buf, int buf_size, int channel) {
 		if (m_playing) {
 			if (m_queData.size() > 0) {
 				SData sd;
-				sd.m_buf = new uint8_t[buf_size];
-				memcpy(sd.m_buf, buf, buf_size);
+				sd.m_uBuf = std::make_unique<uint8_t[]>(buf_size);
+				memcpy(sd.m_uBuf.get(), buf, buf_size);
 				sd.m_len = buf_size;
 
 				std::lock_guard<std::mutex> lock(m_queDataMutex);
-				m_queData.push(sd);
+				m_queData.emplace(std::move(sd));
 				return buf_size;
 			} else {
 				m_sock->BlockSend((const char *)buf, buf_size);
@@ -790,16 +786,16 @@ int MsRtspSink::WriteBuffer(const uint8_t *buf, int buf_size, int channel) {
 
 	if (!m_playing || m_queData.size()) {
 		SData sd;
-		sd.m_buf = new uint8_t[buf_size + 4];
-		uint8_t *pbuf = sd.m_buf;
+		sd.m_uBuf = std::make_unique<uint8_t[]>(buf_size + 4);
+		uint8_t *pbuf = sd.m_uBuf.get();
 		avio_w8(pbuf, '$');
 		avio_w8(pbuf, channel);
 		avio_wb16(pbuf, buf_size);
-		memcpy(sd.m_buf + 4, buf, buf_size);
+		memcpy(sd.m_uBuf.get() + 4, buf, buf_size);
 		sd.m_len = buf_size + 4;
 
 		std::lock_guard<std::mutex> lock(m_queDataMutex);
-		m_queData.push(sd);
+		m_queData.emplace(std::move(sd));
 		return buf_size;
 	} else {
 		uint8_t header_buf[4];
@@ -830,12 +826,12 @@ int MsRtspSink::WriteBuffer(const uint8_t *buf, int buf_size, int channel) {
 				// do nothing
 			} else if (ret == MS_TRY_AGAIN) {
 				SData sd;
-				sd.m_buf = new uint8_t[pLen];
-				memcpy(sd.m_buf, pBuf, pLen);
+				sd.m_uBuf = std::make_unique<uint8_t[]>(pLen);
+				memcpy(sd.m_uBuf.get(), pBuf, pLen);
 				sd.m_len = pLen;
 				{
 					std::lock_guard<std::mutex> lock(m_queDataMutex);
-					m_queData.push(sd);
+					m_queData.emplace(std::move(sd));
 				}
 
 				// regist write
@@ -889,8 +885,6 @@ void MsRtspSink::ReleaseResources() {
 	m_outAudio = nullptr;
 
 	while (m_queData.size()) {
-		SData &sd = m_queData.front();
-		delete[] sd.m_buf;
 		m_queData.pop();
 	}
 

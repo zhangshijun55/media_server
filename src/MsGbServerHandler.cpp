@@ -5,10 +5,10 @@
 
 MsGbServerHandler::MsGbServerHandler(const shared_ptr<MsIGbServer> &server)
     : m_server(server), m_bufSize(DEF_BUF_SIZE), m_bufOff(0) {
-	m_buf = (char *)malloc(m_bufSize);
+	m_bufPtr = make_unique<char[]>(m_bufSize);
 }
 
-MsGbServerHandler::~MsGbServerHandler() { free(m_buf); }
+MsGbServerHandler::~MsGbServerHandler() {}
 
 void MsGbServerHandler::HandleRead(shared_ptr<MsEvent> evt) {
 	shared_ptr<MsSocket> sock = evt->GetSharedSocket();
@@ -16,9 +16,9 @@ void MsGbServerHandler::HandleRead(shared_ptr<MsEvent> evt) {
 	bool isTcp = sock->IsTcp();
 
 	if (isTcp) {
-		recv = sock->Recv(m_buf + m_bufOff, m_bufSize - 1 - m_bufOff);
+		recv = sock->Recv(m_bufPtr.get() + m_bufOff, m_bufSize - 1 - m_bufOff);
 	} else {
-		recv = sock->Recvfrom(m_buf + m_bufOff, m_bufSize - 1 - m_bufOff, m_recvAddr);
+		recv = sock->Recvfrom(m_bufPtr.get() + m_bufOff, m_bufSize - 1 - m_bufOff, m_recvAddr);
 	}
 
 	if (recv <= 0) {
@@ -26,20 +26,20 @@ void MsGbServerHandler::HandleRead(shared_ptr<MsEvent> evt) {
 	}
 
 	m_bufOff += recv;
-	m_buf[m_bufOff] = '\0';
+	m_bufPtr[m_bufOff] = '\0';
 	int oriTotal = m_bufOff;
-	char *p2 = m_buf;
+	char *p2 = m_bufPtr.get();
 
 	while (m_bufOff > 0) {
 		if (!IsHeaderComplete(p2)) {
 			if (m_bufOff == m_bufSize - 1) // header too large, reset buf
 			{
-				MS_LOG_DEBUG("gb server buf full: %s", m_buf);
+				MS_LOG_DEBUG("gb server buf full: %s", m_bufPtr.get());
 				m_bufOff = 0;
 			} else if (m_bufOff) {
-				if (p2 != m_buf) {
+				if (p2 != m_bufPtr.get()) {
 					MS_LOG_DEBUG("gb server left:%d msg:%s", m_bufOff, p2);
-					memmove(m_buf, p2, m_bufOff);
+					memmove(m_bufPtr.get(), p2, m_bufOff);
 				}
 			}
 			return;
@@ -53,9 +53,9 @@ void MsGbServerHandler::HandleRead(shared_ptr<MsEvent> evt) {
 
 		if (left < cntLen) {
 			p2 = oriP2;
-			if (m_bufOff && p2 != m_buf) {
+			if (m_bufOff && p2 != m_bufPtr.get()) {
 				MS_LOG_DEBUG("gb server need len:%d left:%d cnt:%s", cntLen, left, p2);
-				memmove(m_buf, p2, m_bufOff);
+				memmove(m_bufPtr.get(), p2, m_bufOff);
 			}
 			return;
 		}

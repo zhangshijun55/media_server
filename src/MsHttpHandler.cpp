@@ -30,24 +30,24 @@ void MsHttpAcceptHandler::HandleClose(shared_ptr<MsEvent> evt) { m_server->DelEv
 
 MsHttpHandler::MsHttpHandler(const shared_ptr<MsIHttpServer> &server)
     : m_server(server), m_bufSize(DEF_BUF_SIZE), m_bufOff(0) {
-	m_buf = (char *)malloc(m_bufSize);
+	m_bufPtr = make_unique<char[]>(m_bufSize);
 }
 
-MsHttpHandler::~MsHttpHandler() { free(m_buf); }
+MsHttpHandler::~MsHttpHandler() {}
 
 void MsHttpHandler::HandleRead(shared_ptr<MsEvent> evt) {
 	MsSocket *sock = evt->GetSocket();
 
-	int recv = sock->Recv(m_buf + m_bufOff, m_bufSize - 1 - m_bufOff);
+	int recv = sock->Recv(m_bufPtr.get() + m_bufOff, m_bufSize - 1 - m_bufOff);
 
 	if (recv <= 0) {
 		return;
 	}
 
 	m_bufOff += recv;
-	m_buf[m_bufOff] = '\0';
+	m_bufPtr[m_bufOff] = '\0';
 
-	char *p2 = m_buf;
+	char *p2 = m_bufPtr.get();
 
 	while (m_bufOff) {
 		if (!IsHeaderComplete(p2)) {
@@ -55,9 +55,9 @@ void MsHttpHandler::HandleRead(shared_ptr<MsEvent> evt) {
 				if (m_bufOff > 16384) {
 					MS_LOG_ERROR("left buf over 16k, reset");
 					m_bufOff = 0;
-				} else if (p2 != m_buf) {
+				} else if (p2 != m_bufPtr.get()) {
 					MS_LOG_DEBUG("http buf left:%d", m_bufOff);
-					memmove(m_buf, p2, m_bufOff);
+					memmove(m_bufPtr.get(), p2, m_bufOff);
 				}
 			}
 
@@ -84,38 +84,37 @@ void MsHttpHandler::HandleRead(shared_ptr<MsEvent> evt) {
 			int headrLen = p2 - oriP2;
 			p2 = oriP2;
 
-			if (m_bufOff && p2 != m_buf) {
+			if (m_bufOff && p2 != m_bufPtr.get()) {
 				MS_LOG_DEBUG("http buf left:%d", m_bufOff);
-				memmove(m_buf, p2, m_bufOff);
+				memmove(m_bufPtr.get(), p2, m_bufOff);
 			}
 
 			if (headrLen + cntLen >= m_bufSize) {
 				int newBufSize = headrLen + cntLen + 1024;
-				char *newBuf = (char *)malloc(newBufSize);
-				memcpy(newBuf, m_buf, m_bufOff);
+				unique_ptr<char[]> newBufPtr = make_unique<char[]>(newBufSize);
+				memcpy(newBufPtr.get(), m_bufPtr.get(), m_bufOff);
 
 				printf("extend mem %d:%d\n", m_bufSize, newBufSize);
 
-				free(m_buf);
 				m_bufSize = newBufSize;
-				m_buf = newBuf;
+				m_bufPtr = std::move(newBufPtr);
 			}
 
 			return;
 		}
 
-		MS_LOG_DEBUG("recv:%s", m_buf);
+		MS_LOG_DEBUG("recv:%s", oriP2);
 #if ENABLE_RTC
 		// if msg.m_uri starts with /rtc/, let RtcServer handle it
 		if (msg.m_uri.find("/rtc/") == 0) {
-			SHttpTransferMsg *rtcMsg = new SHttpTransferMsg();
+			shared_ptr<SHttpTransferMsg> rtcMsg = make_shared<SHttpTransferMsg>();
 
 			rtcMsg->httpMsg = msg;
 			rtcMsg->sock = evt->GetSharedSocket();
 			rtcMsg->body = string(p2, cntLen);
 			MsMsg msMsg;
 			msMsg.m_msgID = MS_RTC_MSG;
-			msMsg.m_ptr = rtcMsg;
+			msMsg.m_any = rtcMsg;
 			msMsg.m_dstID = 1;
 			msMsg.m_dstType = MS_RTC_SERVER;
 			m_server->PostMsg(msMsg);
@@ -128,13 +127,13 @@ void MsHttpHandler::HandleRead(shared_ptr<MsEvent> evt) {
 		// if uri start with /live, /vod, /gbvod, let HttpStream handle it
 		if (msg.m_uri.find("/live") == 0 || msg.m_uri.find("/vod") == 0 ||
 		    msg.m_uri.find("/gbvod") == 0) {
-			SHttpTransferMsg *httpMsg = new SHttpTransferMsg();
+			shared_ptr<SHttpTransferMsg> httpMsg = make_shared<SHttpTransferMsg>();
 			httpMsg->httpMsg = msg;
 			httpMsg->sock = evt->GetSharedSocket();
 			httpMsg->body = string(p2, cntLen);
 			MsMsg msMsg;
 			msMsg.m_msgID = MS_HTTP_STREAM_MSG;
-			msMsg.m_ptr = httpMsg;
+			msMsg.m_any = httpMsg;
 			msMsg.m_dstID = 1;
 			msMsg.m_dstType = MS_HTTP_STREAM;
 			m_server->PostMsg(msMsg);
@@ -152,9 +151,8 @@ void MsHttpHandler::HandleRead(shared_ptr<MsEvent> evt) {
 	if (m_bufSize > DEF_BUF_SIZE) {
 		printf("relase big mem\n");
 
-		free(m_buf);
 		m_bufSize = DEF_BUF_SIZE;
-		m_buf = (char *)malloc(DEF_BUF_SIZE);
+		m_bufPtr = make_unique<char[]>(DEF_BUF_SIZE);
 	}
 }
 

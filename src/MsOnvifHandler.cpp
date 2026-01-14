@@ -11,19 +11,16 @@
 
 MsOnvifHandler::MsOnvifHandler(shared_ptr<MsReactor> r, shared_ptr<MsGbDevice> dev, int sid)
     : m_reactor(r), m_nrecv(0), m_stage(STAGE_S1), m_dev(dev), m_sid(sid) {
-	m_buf = (char *)malloc(DEF_BUF_SIZE);
+	m_bufPtr = make_unique<char[]>(DEF_BUF_SIZE);
 }
 
-MsOnvifHandler::~MsOnvifHandler() {
-	MS_LOG_DEBUG("~MsOnvifHandler");
-	free(m_buf);
-}
+MsOnvifHandler::~MsOnvifHandler() { MS_LOG_DEBUG("~MsOnvifHandler"); }
 
 void MsOnvifHandler::HandleRead(shared_ptr<MsEvent> evt) {
 	MS_LOG_INFO("handle read");
 
 	MsSocket *sock = evt->GetSocket();
-	int ret = sock->Recv(m_buf + m_nrecv, DEF_BUF_SIZE - m_nrecv);
+	int ret = sock->Recv(m_bufPtr.get() + m_nrecv, DEF_BUF_SIZE - m_nrecv);
 	if (ret < 1) {
 		MS_LOG_INFO("read close:%d", sock->GetFd());
 		this->clear_evt(evt);
@@ -31,11 +28,11 @@ void MsOnvifHandler::HandleRead(shared_ptr<MsEvent> evt) {
 	}
 
 	m_nrecv += ret;
-	m_buf[m_nrecv] = '\0';
+	m_bufPtr[m_nrecv] = '\0';
 
-	MS_LOG_INFO("%s", m_buf);
+	MS_LOG_INFO("%s", m_bufPtr.get());
 
-	char *p = strstr(m_buf, "Envelope>");
+	char *p = strstr(m_bufPtr.get(), "Envelope>");
 	if (!p) // not full msg recved
 	{
 		return;
@@ -91,7 +88,7 @@ void MsOnvifHandler::OnvifPtzControl(string user, string passwd, string url, str
 	string nonce, created, digest;
 	gen_digest(passwd, created, nonce, digest);
 
-	char *buf = new char[DEF_BUF_SIZE];
+	unique_ptr<char[]> bufPtr = make_unique<char[]>(DEF_BUF_SIZE);
 
 	if ((cmd >= 1 && cmd <= 6) || (cmd >= 11 && cmd <= 14)) {
 		string x = "0";
@@ -148,7 +145,7 @@ void MsOnvifHandler::OnvifPtzControl(string user, string passwd, string url, str
 		}
 
 		ret =
-		    sprintf(buf,
+		    sprintf(bufPtr.get(),
 		            "<?xml version=\"1.0\" encoding=\"utf-8\"?><s:Envelope "
 		            "xmlns:s=\"http://www.w3.org/2003/05/soap-envelope\"><s:Header><wsse:Security "
 		            "xmlns:wsse=\"http://docs.oasis-open.org/wss/2004/01/"
@@ -173,7 +170,7 @@ void MsOnvifHandler::OnvifPtzControl(string user, string passwd, string url, str
 		            x.c_str(), y.c_str(), z.c_str());
 	} else if (cmd == 7) {
 		ret =
-		    sprintf(buf,
+		    sprintf(bufPtr.get(),
 		            "<?xml version=\"1.0\" encoding=\"utf-8\"?><s:Envelope "
 		            "xmlns:s=\"http://www.w3.org/2003/05/soap-envelope\"><s:Header><wsse:Security "
 		            "xmlns:wsse=\"http://docs.oasis-open.org/wss/2004/01/"
@@ -193,7 +190,7 @@ void MsOnvifHandler::OnvifPtzControl(string user, string passwd, string url, str
 		            presetID.c_str());
 	} else if (cmd == 8) {
 		ret =
-		    sprintf(buf,
+		    sprintf(bufPtr.get(),
 		            "<?xml version=\"1.0\" encoding=\"utf-8\"?><s:Envelope "
 		            "xmlns:s=\"http://www.w3.org/2003/05/soap-envelope\"><s:Header><wsse:Security "
 		            "xmlns:wsse=\"http://docs.oasis-open.org/wss/2004/01/"
@@ -213,7 +210,7 @@ void MsOnvifHandler::OnvifPtzControl(string user, string passwd, string url, str
 		            presetID.c_str());
 	} else if (cmd == 9) {
 		ret = sprintf(
-		    buf,
+		    bufPtr.get(),
 		    "<?xml version=\"1.0\" encoding=\"utf-8\"?><s:Envelope "
 		    "xmlns:s=\"http://www.w3.org/2003/05/soap-envelope\"><s:Header><wsse:Security "
 		    "xmlns:wsse=\"http://docs.oasis-open.org/wss/2004/01/"
@@ -233,7 +230,7 @@ void MsOnvifHandler::OnvifPtzControl(string user, string passwd, string url, str
 		    presetID.c_str());
 	} else if (cmd == -1) {
 		ret = sprintf(
-		    buf,
+		    bufPtr.get(),
 		    "<?xml version=\"1.0\" encoding=\"utf-8\"?><s:Envelope "
 		    "xmlns:s=\"http://www.w3.org/2003/05/soap-envelope\"><s:Header><wsse:Security "
 		    "xmlns:wsse=\"http://docs.oasis-open.org/wss/2004/01/"
@@ -261,13 +258,12 @@ void MsOnvifHandler::OnvifPtzControl(string user, string passwd, string url, str
 	req.m_host.SetValue(host);
 	req.m_connection.SetValue("close");
 	req.m_contentType.SetValue("application/soap+xml; charset=utf-8");
-	req.SetBody(buf, ret);
+	req.SetBody(bufPtr.get(), ret);
 	req.Dump(strReq);
 
 	ret = tcp_sock->Send(strReq.c_str(), strReq.size());
 	if (ret < 0) {
 		MS_LOG_ERROR("send err:%s", strReq.c_str());
-		delete[] buf;
 		return;
 	}
 
@@ -278,16 +274,14 @@ void MsOnvifHandler::OnvifPtzControl(string user, string passwd, string url, str
 	}
 
 	while (true) {
-		ret = tcp_sock->Recv(buf, DEF_BUF_SIZE);
+		ret = tcp_sock->Recv(bufPtr.get(), DEF_BUF_SIZE);
 		if (ret < 1) {
-			delete[] buf;
 			break;
 		}
 
-		buf[ret] = '\0';
-		char *p = strstr(buf, "Envelope>");
+		bufPtr[ret] = '\0';
+		char *p = strstr(bufPtr.get(), "Envelope>");
 		if (p) {
-			delete[] buf;
 			break;
 		}
 	}
@@ -337,9 +331,9 @@ void MsOnvifHandler::QueryPreset(string user, string passwd, string url, string 
 	string nonce, created, digest;
 	gen_digest(passwd, created, nonce, digest);
 
-	char *buf = new char[DEF_BUF_SIZE];
+	unique_ptr<char[]> bufPtr = make_unique<char[]>(DEF_BUF_SIZE);
 
-	ret = sprintf(buf,
+	ret = sprintf(bufPtr.get(),
 	              "<?xml version=\"1.0\" encoding=\"utf-8\"?><s:Envelope "
 	              "xmlns:s=\"http://www.w3.org/2003/05/soap-envelope\"><s:Header><wsse:Security "
 	              "xmlns:wsse=\"http://docs.oasis-open.org/wss/2004/01/"
@@ -366,7 +360,7 @@ void MsOnvifHandler::QueryPreset(string user, string passwd, string url, string 
 	req.m_host.SetValue(host);
 	req.m_connection.SetValue("close");
 	req.m_contentType.SetValue("application/soap+xml; charset=utf-8");
-	req.SetBody(buf, ret);
+	req.SetBody(bufPtr.get(), ret);
 	req.Dump(strReq);
 
 	ret = tcp_sock->Send(strReq.c_str(), strReq.size());
@@ -376,25 +370,22 @@ void MsOnvifHandler::QueryPreset(string user, string passwd, string url, string 
 		rsp["msg"] = "send err";
 		msRsp.m_strVal = rsp.dump();
 		MsReactorMgr::Instance()->PostMsg(msRsp);
-
-		delete[] buf;
 		return;
 	}
 
 	int nrecv = 0;
 	while (true) {
-		ret = tcp_sock->Recv(buf + nrecv, DEF_BUF_SIZE - nrecv);
+		ret = tcp_sock->Recv(bufPtr.get() + nrecv, DEF_BUF_SIZE - nrecv);
 		if (ret < 1) {
-			delete[] buf;
 			break;
 		}
 
 		nrecv += ret;
-		buf[nrecv] = '\0';
-		char *p = strstr(buf, "Envelope>");
+		bufPtr[nrecv] = '\0';
+		char *p = strstr(bufPtr.get(), "Envelope>");
 		if (p) {
-			MS_LOG_DEBUG("presets:%s", buf);
-			char *pbuf = buf;
+			MS_LOG_DEBUG("presets:%s", bufPtr.get());
+			char *pbuf = bufPtr.get();
 
 			while (true) {
 				p = strstr(pbuf, "Preset token=\"");
@@ -417,7 +408,6 @@ void MsOnvifHandler::QueryPreset(string user, string passwd, string url, string 
 				pbuf = p + 1;
 			}
 
-			delete[] buf;
 			break;
 		}
 	}
@@ -427,9 +417,9 @@ void MsOnvifHandler::QueryPreset(string user, string passwd, string url, string 
 }
 
 void MsOnvifHandler::proc_s1(shared_ptr<MsEvent> evt) {
-	char *p = strstr(m_buf, "XAddrs>");
+	char *p = strstr(m_bufPtr.get(), "XAddrs>");
 	if (!p) {
-		MS_LOG_ERROR("buf err:%s", m_buf);
+		MS_LOG_ERROR("buf err:%s", m_bufPtr.get());
 		this->clear_evt(evt);
 		return;
 	}
@@ -468,7 +458,7 @@ void MsOnvifHandler::proc_s1(shared_ptr<MsEvent> evt) {
 		return;
 	}
 
-	ret = sprintf(m_buf,
+	ret = sprintf(m_bufPtr.get(),
 	              "<?xml version=\"1.0\" encoding=\"utf-8\"?><s:Envelope "
 	              "xmlns:s=\"http://www.w3.org/2003/05/soap-envelope\"><s:Header><wsse:Security "
 	              "xmlns:wsse=\"http://docs.oasis-open.org/wss/2004/01/"
@@ -495,7 +485,7 @@ void MsOnvifHandler::proc_s1(shared_ptr<MsEvent> evt) {
 	req.m_host.SetValue(host);
 	req.m_connection.SetValue("close");
 	req.m_contentType.SetValue("application/soap+xml; charset=utf-8");
-	req.SetBody(m_buf, ret);
+	req.SetBody(m_bufPtr.get(), ret);
 	req.Dump(strReq);
 
 	ret = tcp_sock->Send(strReq.c_str(), strReq.size());
@@ -518,9 +508,9 @@ void MsOnvifHandler::proc_s1(shared_ptr<MsEvent> evt) {
 }
 
 void MsOnvifHandler::proc_s2(shared_ptr<MsEvent> evt) {
-	char *p = strstr(m_buf, "Namespace>http://www.onvif.org/ver10/media/wsdl");
+	char *p = strstr(m_bufPtr.get(), "Namespace>http://www.onvif.org/ver10/media/wsdl");
 	if (!p) {
-		MS_LOG_ERROR("buf err:%s", m_buf);
+		MS_LOG_ERROR("buf err:%s", m_bufPtr.get());
 		this->clear_evt(evt);
 		return;
 	}
@@ -528,7 +518,7 @@ void MsOnvifHandler::proc_s2(shared_ptr<MsEvent> evt) {
 	p += strlen("Namespace>http://www.onvif.org/ver10/media/wsdl");
 	p = strstr(p, "XAddr>");
 	if (!p) {
-		MS_LOG_ERROR("buf err:%s", m_buf);
+		MS_LOG_ERROR("buf err:%s", m_bufPtr.get());
 		this->clear_evt(evt);
 		return;
 	}
@@ -541,14 +531,14 @@ void MsOnvifHandler::proc_s2(shared_ptr<MsEvent> evt) {
 	m_mediaurl.assign(p1, p - p1);
 	MS_LOG_DEBUG("media url:%s", m_mediaurl.c_str());
 
-	p = strstr(m_buf, "Namespace>http://www.onvif.org/ver20/ptz/wsdl");
+	p = strstr(m_bufPtr.get(), "Namespace>http://www.onvif.org/ver20/ptz/wsdl");
 	if (!p) {
-		MS_LOG_ERROR("buf no ptz:%s", m_buf);
+		MS_LOG_ERROR("buf no ptz:%s", m_bufPtr.get());
 	} else {
 		p += strlen("Namespace>http://www.onvif.org/ver20/ptz/wsdl");
 		p = strstr(p, "XAddr>");
 		if (!p) {
-			MS_LOG_ERROR("buf err:%s", m_buf);
+			MS_LOG_ERROR("buf err:%s", m_bufPtr.get());
 			this->clear_evt(evt);
 			return;
 		}
@@ -583,7 +573,7 @@ void MsOnvifHandler::proc_s2(shared_ptr<MsEvent> evt) {
 		return;
 	}
 
-	ret = sprintf(m_buf,
+	ret = sprintf(m_bufPtr.get(),
 	              "<?xml version=\"1.0\" encoding=\"utf-8\"?><s:Envelope "
 	              "xmlns:s=\"http://www.w3.org/2003/05/soap-envelope\"><s:Header><wsse:Security "
 	              "xmlns:wsse=\"http://docs.oasis-open.org/wss/2004/01/"
@@ -609,7 +599,7 @@ void MsOnvifHandler::proc_s2(shared_ptr<MsEvent> evt) {
 	req.m_host.SetValue(host);
 	req.m_connection.SetValue("close");
 	req.m_contentType.SetValue("application/soap+xml; charset=utf-8");
-	req.SetBody(m_buf, ret);
+	req.SetBody(m_bufPtr.get(), ret);
 	req.Dump(strReq);
 
 	ret = tcp_sock->Send(strReq.c_str(), strReq.size());
@@ -630,9 +620,9 @@ void MsOnvifHandler::proc_s2(shared_ptr<MsEvent> evt) {
 }
 
 void MsOnvifHandler::proc_s3(shared_ptr<MsEvent> evt) {
-	char *p = strstr(m_buf, "Profiles token=\"");
+	char *p = strstr(m_bufPtr.get(), "Profiles token=\"");
 	if (!p) {
-		MS_LOG_ERROR("buf err:%s", m_buf);
+		MS_LOG_ERROR("buf err:%s", m_bufPtr.get());
 		this->clear_evt(evt);
 		return;
 	}
@@ -669,7 +659,7 @@ void MsOnvifHandler::proc_s3(shared_ptr<MsEvent> evt) {
 	}
 
 	ret = sprintf(
-	    m_buf,
+	    m_bufPtr.get(),
 	    "<?xml version=\"1.0\" encoding=\"utf-8\"?><s:Envelope "
 	    "xmlns:s=\"http://www.w3.org/2003/05/soap-envelope\"><s:Header><wsse:Security "
 	    "xmlns:wsse=\"http://docs.oasis-open.org/wss/2004/01/"
@@ -698,7 +688,7 @@ void MsOnvifHandler::proc_s3(shared_ptr<MsEvent> evt) {
 	req.m_host.SetValue(host);
 	req.m_connection.SetValue("close");
 	req.m_contentType.SetValue("application/soap+xml; charset=utf-8");
-	req.SetBody(m_buf, ret);
+	req.SetBody(m_bufPtr.get(), ret);
 	req.Dump(strReq);
 
 	ret = tcp_sock->Send(strReq.c_str(), strReq.size());
@@ -719,9 +709,9 @@ void MsOnvifHandler::proc_s3(shared_ptr<MsEvent> evt) {
 }
 
 void MsOnvifHandler::proc_s4(shared_ptr<MsEvent> evt) {
-	char *p = strstr(m_buf, ":Uri>");
+	char *p = strstr(m_bufPtr.get(), ":Uri>");
 	if (!p) {
-		MS_LOG_ERROR("buf err:%s", m_buf);
+		MS_LOG_ERROR("buf err:%s", m_bufPtr.get());
 		this->clear_evt(evt);
 		return;
 	}

@@ -28,18 +28,17 @@ public:
 	void OnRun();
 	void Exit();
 	void SetLevel(int level);
-	void downLog(char *&buf, int64_t &size);
 
 private:
-	char *GetLogBuf();
-	void RelLogBuf(char *buf);
-	void EnqueLog(char *log);
+	unique_ptr<char[]> GetLogBufPtr();
+	void RelLogBufPtr(unique_ptr<char[]> bufPtr);
+	void EnqueLogPtr(unique_ptr<char[]> logPtr);
 
 	int m_days;
 	int m_level;
 	bool m_exit;
-	queue<char *> m_logBuf;
-	queue<char *> m_logQue;
+	queue<unique_ptr<char[]>> m_logBufPtr;
+	queue<unique_ptr<char[]>> m_logQuePtr;
 	FILE *m_fp;
 	int m_curDay;
 

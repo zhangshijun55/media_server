@@ -11,7 +11,7 @@ public:
 	void HandleMsg(MsMsg &msg) override;
 
 private:
-	void HandleStreamMsg(SHttpTransferMsg *httpMsg);
+	void HandleStreamMsg(shared_ptr<SHttpTransferMsg> httpMsg);
 
 private:
 	int m_seqID = 0;

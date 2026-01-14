@@ -57,7 +57,18 @@ struct SGbContext {
 };
 
 struct SData {
-	uint8_t *m_buf;
+	SData() = default;
+	~SData() = default;
+	SData(const SData &other) = delete;
+	SData &operator=(const SData &other) = delete;
+
+	SData(SData &&other) noexcept
+	    : m_uBuf(std::move(other.m_uBuf)), m_len(other.m_len), m_capacity(other.m_capacity) {
+		other.m_len = 0;
+		other.m_capacity = 0;
+	}
+
+	unique_ptr<uint8_t[]> m_uBuf;
 	int m_len;
 	int m_capacity;
 };

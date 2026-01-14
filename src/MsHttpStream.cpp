@@ -15,9 +15,15 @@ using json = nlohmann::json;
 void MsHttpStream::HandleMsg(MsMsg &msg) {
 	switch (msg.m_msgID) {
 	case MS_HTTP_STREAM_MSG: {
-		SHttpTransferMsg *httpMsg = static_cast<SHttpTransferMsg *>(msg.m_ptr);
+		shared_ptr<SHttpTransferMsg> httpMsg;
+		try {
+			httpMsg = std::any_cast<shared_ptr<SHttpTransferMsg>>(msg.m_any);
+		} catch (std::bad_any_cast &e) {
+			MS_LOG_WARN("http stream bad any cast:%s", e.what());
+			return;
+		}
+
 		this->HandleStreamMsg(httpMsg);
-		delete httpMsg;
 	} break;
 	default:
 		MsReactor::HandleMsg(msg);
@@ -25,7 +31,7 @@ void MsHttpStream::HandleMsg(MsMsg &msg) {
 	}
 }
 
-void MsHttpStream::HandleStreamMsg(SHttpTransferMsg *httpMsg) {
+void MsHttpStream::HandleStreamMsg(shared_ptr<SHttpTransferMsg> httpMsg) {
 	MsHttpMsg &msg = httpMsg->httpMsg;
 	shared_ptr<MsSocket> &sock = httpMsg->sock;
 

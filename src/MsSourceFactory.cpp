@@ -28,7 +28,7 @@ std::shared_ptr<MsMediaSource> MsSourceFactory::CreateLiveSource(const std::stri
 	} break;
 
 	case GB_DEV: {
-		SGbContext *ctx = new SGbContext;
+		std::shared_ptr<SGbContext> ctx = std::make_shared<SGbContext>();
 		ctx->gbID = device->m_deviceID;
 		ctx->type = 0;
 		ctx->startTime = "0";
@@ -66,7 +66,7 @@ std::shared_ptr<MsMediaSource> MsSourceFactory::CreateGbvodSource(const std::str
 		return nullptr;
 	}
 
-	SGbContext *ctx = new SGbContext;
+	std::shared_ptr<SGbContext> ctx = std::make_shared<SGbContext>();
 	ctx->gbID = parts[0];
 	ctx->type = std::stoi(parts[3]);
 	ctx->startTime = parts[1];

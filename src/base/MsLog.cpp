@@ -20,16 +20,12 @@ MsLog::~MsLog() {
 		fclose(m_fp);
 	}
 
-	while (m_logQue.size()) {
-		char *log = m_logQue.front();
-		free(log);
-		m_logQue.pop();
+	while (m_logQuePtr.size()) {
+		m_logQuePtr.pop();
 	}
 
-	while (m_logBuf.size()) {
-		char *log = m_logBuf.front();
-		free(log);
-		m_logBuf.pop();
+	while (m_logBufPtr.size()) {
+		m_logBufPtr.pop();
 	}
 }
 
@@ -48,26 +44,26 @@ MsLog *MsLog::Instance() {
 	}
 }
 
-char *MsLog::GetLogBuf() {
-	if (m_logBuf.size()) {
-		char *buf = m_logBuf.front();
-		m_logBuf.pop();
+unique_ptr<char[]> MsLog::GetLogBufPtr() {
+	if (m_logBufPtr.size()) {
+		unique_ptr<char[]> buf = std::move(m_logBufPtr.front());
+		m_logBufPtr.pop();
 		return buf;
 	} else {
-		char *buf = (char *)malloc(MAX_LOG_LEN);
+		unique_ptr<char[]> buf = make_unique<char[]>(MAX_LOG_LEN);
 		return buf;
 	}
 }
 
-void MsLog::RelLogBuf(char *buf) {
-	if (m_logBuf.size() > MAX_LOG_QUEUE) {
-		free(buf);
+void MsLog::RelLogBufPtr(unique_ptr<char[]> bufPtr) {
+	if (m_logBufPtr.size() > MAX_LOG_QUEUE) {
+		// free(buf);
 	} else {
-		m_logBuf.emplace(buf);
+		m_logBufPtr.emplace(std::move(bufPtr));
 	}
 }
 
-void MsLog::EnqueLog(char *log) { m_logQue.emplace(log); }
+void MsLog::EnqueLogPtr(unique_ptr<char[]> logPtr) { m_logQuePtr.emplace(std::move(logPtr)); }
 
 void MsLog::Log(int level, const char *strLog, ...) {
 	if (level > m_level) {
@@ -76,19 +72,19 @@ void MsLog::Log(int level, const char *strLog, ...) {
 
 	unique_lock<mutex> lk(MsLog::m_mutex);
 
-	char *logBuf = this->GetLogBuf();
+	unique_ptr<char[]> logBuf = this->GetLogBufPtr();
 	int maxLen = MAX_LOG_LEN - 1;
 
 	va_list argList;
 
 	va_start(argList, strLog);
 
-	int nRet = vsnprintf(logBuf, maxLen, strLog, argList);
+	int nRet = vsnprintf(logBuf.get(), maxLen, strLog, argList);
 
 	va_end(argList);
 
 	if (nRet < 0) {
-		this->RelLogBuf(logBuf);
+		this->RelLogBufPtr(std::move(logBuf));
 		lk.unlock();
 	} else {
 		if (nRet > maxLen - 1) {
@@ -98,7 +94,7 @@ void MsLog::Log(int level, const char *strLog, ...) {
 		logBuf[nRet] = '\n';
 		logBuf[nRet + 1] = '\0';
 
-		this->EnqueLog(logBuf);
+		this->EnqueLogPtr(std::move(logBuf));
 		lk.unlock();
 
 		MsLog::m_condiVar.notify_one();
@@ -111,9 +107,9 @@ void MsLog::OnRun() {
 	while (!m_exit) {
 		MsLog::m_condiVar.wait(lk);
 
-		while (m_logQue.size() && !m_exit) {
-			char *log = m_logQue.front();
-			m_logQue.pop();
+		while (m_logQuePtr.size() && !m_exit) {
+			unique_ptr<char[]> log = std::move(m_logQuePtr.front());
+			m_logQuePtr.pop();
 
 			lk.unlock();
 
@@ -147,7 +143,7 @@ void MsLog::OnRun() {
 			}
 
 			fprintf(m_fp, "%04d-%02d-%02d %02d:%02d:%02d %s", atm->tm_year + 1900, atm->tm_mon + 1,
-			        atm->tm_mday, atm->tm_hour, atm->tm_min, atm->tm_sec, log);
+			        atm->tm_mday, atm->tm_hour, atm->tm_min, atm->tm_sec, log.get());
 			fflush(m_fp);
 
 			if (change) {
@@ -162,7 +158,7 @@ void MsLog::OnRun() {
 
 			lk.lock();
 
-			this->RelLogBuf(log);
+			this->RelLogBufPtr(std::move(log));
 		}
 	}
 
@@ -178,33 +174,6 @@ void MsLog::Exit() {
 }
 
 void MsLog::SetLevel(int level) { m_level = level; }
-
-void MsLog::downLog(char *&buf, int64_t &size) {
-	time_t tt;
-	struct tm *atm;
-
-	time(&tt);
-	atm = localtime(&tt);
-
-	char fName[32];
-	sprintf(fName, "log/log-%d.txt", atm->tm_mday);
-	FILE *fp = fopen(fName, "rb");
-	if (!fp) {
-		size = 0;
-		return;
-	}
-
-	fseek(fp, 0L, SEEK_END);
-	size = ftell(fp);
-	fseek(fp, 0L, SEEK_SET);
-
-	if (size == 0)
-		return;
-
-	buf = (char *)malloc(size);
-	fread(buf, size, 1, fp);
-	fclose(fp);
-}
 
 void MsLog::Run() {
 	thread worker(&MsLog::OnRun, this);

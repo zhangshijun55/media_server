@@ -11,18 +11,14 @@ extern "C" {
 class MsGbRtpHandler : public MsEventHandler {
 public:
 	MsGbRtpHandler(shared_ptr<MsGbSource> source)
-	    : m_bufSize(DEF_BUF_SIZE), m_bufOff(0), m_source(source) {
-		m_buf = new char[m_bufSize];
-	}
+	    : m_bufPtr(make_unique<char[]>(DEF_BUF_SIZE)), m_bufSize(DEF_BUF_SIZE), m_bufOff(0),
+	      m_source(source) {}
 
-	~MsGbRtpHandler() {
-		MS_LOG_INFO("~MsGbRtpHandler");
-		delete[] m_buf;
-	}
+	~MsGbRtpHandler() { MS_LOG_INFO("~MsGbRtpHandler"); }
 
 	void HandleRead(shared_ptr<MsEvent> evt) override {
 		MsSocket *s = evt->GetSocket();
-		int n = s->Recv(m_buf + m_bufOff, m_bufSize - m_bufOff);
+		int n = s->Recv(m_bufPtr.get() + m_bufOff, m_bufSize - m_bufOff);
 
 		if (n <= 0) {
 			return;
@@ -35,7 +31,7 @@ public:
 		}
 
 		if (m_isTcp) {
-			uint8_t *xbuf = (uint8_t *)m_buf;
+			uint8_t *xbuf = (uint8_t *)m_bufPtr.get();
 
 			while (m_bufOff > 2) {
 				int pktLen = AV_RB16(xbuf);
@@ -49,8 +45,8 @@ public:
 				if (pktLen > m_bufOff - 2) // not complete
 				{
 					if (m_bufOff) {
-						if (xbuf - (uint8_t *)m_buf != 0) {
-							memmove(m_buf, xbuf, m_bufOff);
+						if (xbuf - (uint8_t *)m_bufPtr.get() != 0) {
+							memmove(m_bufPtr.get(), xbuf, m_bufOff);
 						}
 					}
 
@@ -69,11 +65,11 @@ public:
 			}
 
 			if (m_bufOff) {
-				memmove(m_buf, xbuf, m_bufOff);
+				memmove(m_bufPtr.get(), xbuf, m_bufOff);
 			}
 		} else // udp
 		{
-			if (m_source->ProcessRtp((uint8_t *)m_buf, m_bufOff) < 0) {
+			if (m_source->ProcessRtp((uint8_t *)m_bufPtr.get(), m_bufOff) < 0) {
 				MS_LOG_WARN("gb source closing, stop process rtp");
 				m_bufOff = 0;
 				m_source->DelEvent(evt);
@@ -98,7 +94,7 @@ public:
 
 private:
 	int8_t m_isTcp = -1;
-	char *m_buf;
+	unique_ptr<char[]> m_bufPtr;
 	int m_bufSize;
 	int m_bufOff;
 	shared_ptr<MsGbSource> m_source;
@@ -197,7 +193,6 @@ void MsGbSource::Exit() {
 		bye.m_dstID = 1;
 		this->PostMsg(bye);
 
-		delete m_ctx;
 		m_ctx = nullptr;
 	}
 
@@ -375,7 +370,7 @@ void MsGbSource::OnRun() {
 	inv.m_msgID = MS_INIT_INVITE;
 	inv.m_dstType = MS_GB_SERVER;
 	inv.m_dstID = 1;
-	inv.m_ptr = m_ctx;
+	inv.m_any = m_ctx;
 	this->PostMsg(inv);
 }
 

@@ -35,7 +35,7 @@ public:
 	shared_ptr<MsReactor> m_reactor;
 	shared_ptr<MsGbDevice> m_dev;
 	shared_ptr<MsEvent> m_evt;
-	char *m_buf;
+	unique_ptr<char[]> m_bufPtr;
 	int m_nrecv;
 	int m_stage;
 	int m_sid;

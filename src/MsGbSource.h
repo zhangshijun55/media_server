@@ -11,15 +11,11 @@
 
 class MsGbSource : public MsMediaSource, public MsReactor {
 public:
-	MsGbSource(const std::string &streamID, SGbContext *ctx, int id)
+	MsGbSource(const std::string &streamID, shared_ptr<SGbContext> ctx, int id)
 	    : MsMediaSource(streamID), MsReactor(MS_GB_SOURCE, id), m_ctx(ctx),
 	      m_ringBuffer(std::make_unique<MsRingBuffer>(DEF_BUF_SIZE)) {}
 
-	~MsGbSource() {
-		if (m_ctx) {
-			delete m_ctx;
-		}
-	}
+	~MsGbSource() {}
 
 	void Work() override;
 	shared_ptr<MsMediaSource> GetSharedPtr() override {
@@ -49,7 +45,7 @@ private:
 	std::condition_variable m_condVar;
 	std::unique_ptr<std::thread> m_psThread;
 
-	SGbContext *m_ctx;
+	shared_ptr<SGbContext> m_ctx;
 	shared_ptr<MsSocket> m_rtpSock; // for tcp active
 };
 

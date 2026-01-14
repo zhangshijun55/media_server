@@ -5,18 +5,10 @@
 MsRtcSource::~MsRtcSource() {
 	MS_LOG_INFO("~MsRtcSource %s", _sessionId.c_str());
 	while (m_rtcDataQue.size()) {
-		SData data = m_rtcDataQue.front();
 		m_rtcDataQue.pop();
-		if (data.m_buf) {
-			delete[] data.m_buf;
-		}
 	}
 	while (m_recyleQue.size()) {
-		SData data = m_recyleQue.front();
 		m_recyleQue.pop();
-		if (data.m_buf) {
-			delete[] data.m_buf;
-		}
 	}
 }
 
@@ -250,26 +242,26 @@ void MsRtcSource::WriteBuffer(const void *buf, int size) {
 	if (m_recyleQue.size() > 0) {
 		SData &sd = m_recyleQue.front();
 		if (sd.m_capacity >= size) {
-			memcpy(sd.m_buf, buf, size);
+
+			memcpy(sd.m_uBuf.get(), buf, size);
 			sd.m_len = size;
-			m_rtcDataQue.push(sd);
+			m_rtcDataQue.emplace(std::move(sd));
 			m_recyleQue.pop();
 			lock.unlock();
 			m_condVar.notify_one();
 			return;
 		} else {
 			// not enough capacity
-			delete[] sd.m_buf;
 			m_recyleQue.pop();
 		}
 	}
 
 	SData sd;
-	sd.m_buf = new uint8_t[size];
+	sd.m_uBuf = std::make_unique<uint8_t[]>(size);
 	sd.m_len = size;
 	sd.m_capacity = size;
-	memcpy(sd.m_buf, buf, size);
-	m_rtcDataQue.push(sd);
+	memcpy(sd.m_uBuf.get(), buf, size);
+	m_rtcDataQue.emplace(std::move(sd));
 	lock.unlock();
 	m_condVar.notify_one();
 }
@@ -292,14 +284,14 @@ int MsRtcSource::ReadBuffer(uint8_t *buf, int buf_size) {
 		toRead = sd.m_len;
 	}
 
-	memcpy(buf, sd.m_buf, toRead);
+	memcpy(buf, sd.m_uBuf.get(), toRead);
 	if (toRead < sd.m_len) {
-		memmove(sd.m_buf, sd.m_buf + toRead, sd.m_len - toRead);
+		memmove(sd.m_uBuf.get(), sd.m_uBuf.get() + toRead, sd.m_len - toRead);
 	}
 	sd.m_len -= toRead;
 
 	if (sd.m_len == 0) {
-		m_recyleQue.push(sd);
+		m_recyleQue.emplace(std::move(sd));
 		m_rtcDataQue.pop();
 	}
 

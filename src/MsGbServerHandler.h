@@ -46,7 +46,7 @@ public:
 private:
 	shared_ptr<MsIGbServer> m_server;
 
-	char *m_buf;
+	unique_ptr<char[]> m_bufPtr;
 	int m_bufSize;
 	int m_bufOff;
 	MsInetAddr m_recvAddr;

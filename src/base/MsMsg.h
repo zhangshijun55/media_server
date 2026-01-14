@@ -2,6 +2,7 @@
 #define MS_MSG_H
 
 #include "MsOsConfig.h"
+#include <any>
 #include <string>
 
 using namespace std;
@@ -24,7 +25,7 @@ public:
 
 	int m_intVal;
 	string m_strVal;
-	void *m_ptr;
+	std::any m_any;
 };
 
 #endif // MS_MSG_H
