@@ -79,12 +79,6 @@ void MsHttpSink::OnStreamInfo(AVStream *video, int videoIdx, AVStream *audio, in
 	m_evt = std::make_shared<MsEvent>(m_sock, MS_FD_READ | MS_FD_CLOSE, shared_from_this());
 	m_reactor->AddEvent(m_evt);
 
-#if LIBAVFORMAT_VERSION_MAJOR >= 61
-	using IO_WRITE_BUF_TYPE = const uint8_t;
-#else
-	using IO_WRITE_BUF_TYPE = uint8_t;
-#endif
-
 	m_pb = avio_alloc_context(
 	    static_cast<unsigned char *>(av_malloc(buf_size)), buf_size, 1, this, nullptr,
 	    [](void *opaque, IO_WRITE_BUF_TYPE *buf, int buf_size) -> int {

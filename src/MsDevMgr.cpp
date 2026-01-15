@@ -246,6 +246,10 @@ void MsDevMgr::LoadDevice() {
 				AssignDbDev(i, dev, val);
 			}
 
+			// if gb device, set status OFF
+			if (dev->m_protocol == GB_DEV) {
+				dev->m_status = "OFF";
+			}
 			m_device.emplace(dev->m_deviceID, dev);
 		}
 
@@ -615,6 +619,7 @@ void MsDevMgr::ModifyDevice(const string &devId, const ModDev &mm) {
 
 	shared_ptr<MsGbDevice> dev = it->second;
 	string sql = "update device set ";
+	int startSize = sql.size();
 
 	if (mm.m_port > 0) {
 		dev->m_port = mm.m_port;
@@ -747,6 +752,10 @@ void MsDevMgr::ModifyDevice(const string &devId, const ModDev &mm) {
 		sql += "onvif_ptz_url='";
 		sql += mm.m_onvifptzurl;
 		sql += "' ,";
+	}
+
+	if (sql.size() == startSize) {
+		return;
 	}
 
 	sql.resize(sql.size() - 1);

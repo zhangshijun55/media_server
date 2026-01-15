@@ -1,6 +1,8 @@
 #include "MsRtcServer.h"
 #include "MsCommon.h"
 #include "MsConfig.h"
+#include "MsRtcSink.h"
+#include "MsSourceFactory.h"
 
 void MsRtcServer::Run() {
 	this->RegistToManager();
@@ -43,6 +45,22 @@ void MsRtcServer::HandleMsg(MsMsg &msg) {
 			it->second->_sock.reset();
 			MS_LOG_INFO("pc:%s sock reset", sessionId.c_str());
 		}
+		auto itWhep = m_whepSinkMap.find(sessionId);
+		if (itWhep != m_whepSinkMap.end()) {
+			itWhep->second->_sock.reset();
+			MS_LOG_INFO("whep:%s sock reset", sessionId.c_str());
+		}
+	} break;
+
+	case MS_WHEP_PEER_CLOSED: {
+		string sessionId = msg.m_strVal;
+		std::lock_guard<std::mutex> lock(m_mtx);
+		auto it = m_whepSinkMap.find(sessionId);
+		if (it != m_whepSinkMap.end()) {
+			it->second->SinkActiveClose();
+			m_whepSinkMap.erase(it);
+			MS_LOG_INFO("whep:%s removed", sessionId.c_str());
+		}
 	} break;
 
 	default:
@@ -55,6 +73,10 @@ void MsRtcServer::RtcProcess(shared_ptr<SHttpTransferMsg> rtcMsg) {
 	// if httpMsg.uri contains "whip" then whip process else return 404
 	if (rtcMsg->httpMsg.m_uri.find("whip") != string::npos) {
 		return this->WhipProcess(rtcMsg);
+	}
+	// if httpMsg.uri contains "whep" then whep process
+	else if (rtcMsg->httpMsg.m_uri.find("whep") != string::npos) {
+		return this->WhepProcess(rtcMsg);
 	}
 	// if uri start with /rtc/session then rtc process
 	else if (rtcMsg->httpMsg.m_uri.find("/rtc/session") == 0) {
@@ -355,6 +377,7 @@ void MsRtcServer::WhipProcess(shared_ptr<SHttpTransferMsg> rtcMsg) {
 					return;
 
 				auto description = pc->localDescription();
+				string sdp = description->generateSdp();
 
 				MsHttpMsg rsp;
 				rsp.m_version = version;
@@ -364,7 +387,6 @@ void MsRtcServer::WhipProcess(shared_ptr<SHttpTransferMsg> rtcMsg) {
 				rsp.m_contentType.SetValue("application/sdp");
 				rsp.m_exposeHeader.SetValue("Location");
 
-				string sdp = string(*description);
 				rsp.SetBody(sdp.c_str(), sdp.size());
 				SendHttpRspEx(sock.get(), rsp);
 
@@ -390,6 +412,135 @@ void MsRtcServer::WhipProcess(shared_ptr<SHttpTransferMsg> rtcMsg) {
 			if (it != m_pcMap.end()) {
 				it->second->SourceActiveClose();
 				m_pcMap.erase(it);
+			}
+		}
+
+		MsHttpMsg rsp;
+		rsp.m_version = msg.m_version;
+		rsp.m_status = "200";
+		rsp.m_reason = "OK";
+		SendHttpRspEx(sock.get(), rsp);
+	} else {
+		MsHttpMsg rsp;
+		rsp.m_version = msg.m_version;
+		rsp.m_status = "405";
+		rsp.m_reason = "Method Not Allowed";
+
+		string body = "405 Method Not Allowed";
+		rsp.m_contentLength.SetIntVal(body.size());
+		rsp.m_body = body.c_str();
+		rsp.m_bodyLen = body.size();
+		rsp.m_contentType.SetValue("text/plain; charset=UTF-8");
+
+		SendHttpRspEx(sock.get(), rsp);
+	}
+}
+
+void MsRtcServer::WhepProcess(shared_ptr<SHttpTransferMsg> rtcMsg) {
+	MsHttpMsg &msg = rtcMsg->httpMsg;
+	shared_ptr<MsSocket> &sock = rtcMsg->sock;
+	string &sdp = rtcMsg->body;
+
+	// Handle OPTIONS request
+	if (msg.m_method == "OPTIONS" || msg.m_method == "GET") {
+		MsHttpMsg rsp;
+		rsp.m_version = msg.m_version;
+		rsp.m_status = "204";
+		rsp.m_reason = "No Content";
+		SendHttpRspEx(sock.get(), rsp);
+	} else if (msg.m_method == "POST") {
+		// Parse stream ID from URI: /whep/{streamId}
+		string streamId;
+		size_t pos = msg.m_uri.find("whep/");
+		if (pos != string::npos) {
+			string path = msg.m_uri.substr(pos + 5); // after "whep/"
+			// Remove query parameters if any
+			size_t qpos = path.find('?');
+			if (qpos != string::npos) {
+				path = path.substr(0, qpos);
+			}
+			streamId = path;
+		}
+
+		if (streamId.empty()) {
+			MsHttpMsg rsp;
+			rsp.m_version = msg.m_version;
+			rsp.m_status = "400";
+			rsp.m_reason = "Bad Request";
+			SendHttpRspEx(sock.get(), rsp);
+			return;
+		}
+
+		// Check if the source exists
+		bool newSource = false;
+		auto source = MsResManager::GetInstance().GetMediaSource(streamId);
+		if (!source) {
+			source = MsSourceFactory::CreateLiveSource(streamId);
+			newSource = true;
+		}
+		if (!source) {
+			MS_LOG_WARN("whep stream %s not found", streamId.c_str());
+			MsHttpMsg rsp;
+			rsp.m_version = msg.m_version;
+			rsp.m_status = "404";
+			rsp.m_reason = "Not Found";
+			SendHttpRspEx(sock.get(), rsp);
+			return;
+		}
+		string sessionId = GenRandStr(16);
+		string httpIp = MsConfig::Instance()->GetConfigStr("localBindIP");
+		int httpPort = MsConfig::Instance()->GetConfigInt("httpPort");
+
+#if ENABLE_HTTPS
+		string protocol = "https://";
+#else
+		string protocol = "http://";
+#endif
+
+		string location = protocol + httpIp + ":" + to_string(httpPort) + "/rtc/whep/" + streamId +
+		                  "/" + sessionId;
+
+		// Create the RTC sink
+		static int whepSinkId = 0;
+		shared_ptr<MsRtcSink> rtcSink =
+		    make_shared<MsRtcSink>("whep", streamId, ++whepSinkId, sessionId);
+		rtcSink->_sock = sock;
+		rtcSink->_sessionId = sessionId;
+
+		// Setup WebRTC parameters - the actual tracks will be created in OnStreamInfo
+		// after we know the stream codec info
+		auto weakThis = weak_from_this();
+		rtcSink->SetupWebRTC(sdp, msg.m_version, location, [weakThis](const string &sid) {
+			auto self = weakThis.lock();
+			if (self) {
+				MsMsg closeMsg;
+				closeMsg.m_msgID = MS_WHEP_PEER_CLOSED;
+				closeMsg.m_strVal = sid;
+				self->EnqueMsg(closeMsg);
+			}
+		});
+
+		{
+			std::lock_guard<std::mutex> lock(m_mtx);
+			m_whepSinkMap[sessionId] = rtcSink;
+		}
+
+		// Add sink to source - OnStreamInfo will be called and will create the SDP answer
+		source->AddSink(rtcSink);
+		if (newSource) {
+			source->Work();
+		}
+		MS_LOG_INFO("whep sink %s added to source %s", sessionId.c_str(), streamId.c_str());
+
+	} else if (msg.m_method == "DELETE") {
+		size_t pos = msg.m_uri.find_last_of('/');
+		if (pos != string::npos && pos < msg.m_uri.size() - 1) {
+			string sessionId = msg.m_uri.substr(pos + 1);
+			std::lock_guard<std::mutex> lock(m_mtx);
+			auto it = m_whepSinkMap.find(sessionId);
+			if (it != m_whepSinkMap.end()) {
+				it->second->DetachSource();
+				m_whepSinkMap.erase(it);
 			}
 		}
 

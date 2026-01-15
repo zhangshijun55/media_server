@@ -36,6 +36,7 @@ void MsMediaSource::RemoveSinkNoLock(const std::string &type, int sinkID) {
 }
 
 void MsMediaSource::NotifyStreamInfo() {
+	this->UpdateVideoInfo();
 	std::lock_guard<std::mutex> lock(m_sinkMutex);
 	for (auto &sink : m_sinks) {
 		if (sink) {

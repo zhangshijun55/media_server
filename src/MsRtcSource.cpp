@@ -116,12 +116,6 @@ void MsRtcSource::StartRtpDemux() {
 	    },
 	    NULL, NULL);
 
-#if LIBAVFORMAT_VERSION_MAJOR >= 61
-	using IO_WRITE_BUF_TYPE = const uint8_t;
-#else
-	using IO_WRITE_BUF_TYPE = uint8_t;
-#endif
-
 	rtp_avio_context = avio_alloc_context(
 	    static_cast<unsigned char *>(av_malloc(rtp_buff_size)), rtp_buff_size, 1, this,
 	    [](void *opaque, uint8_t *buf, int buf_size) -> int {

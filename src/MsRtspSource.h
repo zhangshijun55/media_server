@@ -9,6 +9,7 @@ public:
 	    : MsMediaSource(streamID), m_url(url) {}
 
 	void Work() override;
+	void UpdateVideoInfo() override;
 	shared_ptr<MsMediaSource> GetSharedPtr() override {
 		return dynamic_pointer_cast<MsMediaSource>(shared_from_this());
 	}

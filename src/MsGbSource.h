@@ -26,6 +26,7 @@ public:
 	void HandleMsg(MsMsg &msg) override;
 	int ProcessRtp(uint8_t *buf, int len);
 
+	void UpdateVideoInfo() override;
 	void SourceActiveClose() override;
 	void OnSinksEmpty() override;
 

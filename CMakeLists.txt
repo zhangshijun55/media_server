@@ -76,6 +76,7 @@ set(BASE_SOURCES
 if(ENABLE_RTC)
     list(APPEND MAIN_SOURCES src/MsRtcServer.cpp)
     list(APPEND MAIN_SOURCES src/MsRtcSource.cpp)
+    list(APPEND MAIN_SOURCES src/MsRtcSink.cpp)
 endif()
 
 if(ENABLE_HTTPS)

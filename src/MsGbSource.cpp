@@ -1,5 +1,6 @@
 #include "MsGbSource.h"
 #include "MsConfig.h"
+#include "MsDevMgr.h"
 #include "MsLog.h"
 #include "MsPortAllocator.h"
 #include <thread>
@@ -580,6 +581,16 @@ int MsGbSource::ProcessRtp(uint8_t *buf, int len) {
 	}
 
 	return this->WriteBuffer(buf, len);
+}
+
+void MsGbSource::UpdateVideoInfo() {
+	if (m_ctx && m_video && m_ctx->type == 0) {
+		ModDev m;
+		m.m_codec = avcodec_get_name(m_video->codecpar->codec_id);
+		m.m_resolution =
+		    to_string(m_video->codecpar->width) + "x" + to_string(m_video->codecpar->height);
+		MsDevMgr::Instance()->ModifyDevice(m_ctx->gbID, m);
+	}
 }
 
 void MsGbSource::SourceActiveClose() {

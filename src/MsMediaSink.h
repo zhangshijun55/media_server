@@ -8,6 +8,12 @@ extern "C" {
 #include <libavformat/avformat.h>
 }
 
+#if LIBAVFORMAT_VERSION_MAJOR >= 61
+using IO_WRITE_BUF_TYPE = const uint8_t;
+#else
+using IO_WRITE_BUF_TYPE = uint8_t;
+#endif
+
 class MsMediaSink {
 public:
 	MsMediaSink(const std::string &type, const std::string &streamID, int sinkID)

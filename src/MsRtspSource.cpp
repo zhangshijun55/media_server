@@ -1,10 +1,24 @@
 #include "MsRtspSource.h"
+#include "MsDevMgr.h"
 #include "MsLog.h"
 #include <thread>
 
 void MsRtspSource::Work() {
 	std::thread worker([this]() { this->OnRun(); });
 	worker.detach();
+}
+
+void MsRtspSource::UpdateVideoInfo() {
+	if (m_video == nullptr) {
+		MS_LOG_WARN("video stream is null, cannot update device info");
+		return;
+	}
+
+	ModDev m;
+	m.m_codec = avcodec_get_name(m_video->codecpar->codec_id);
+	m.m_resolution =
+	    to_string(m_video->codecpar->width) + "x" + to_string(m_video->codecpar->height);
+	MsDevMgr::Instance()->ModifyDevice(m_streamID, m);
 }
 
 void MsRtspSource::OnRun() {
