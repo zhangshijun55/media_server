@@ -618,160 +618,171 @@ void MsDevMgr::ModifyDevice(const string &devId, const ModDev &mm) {
 	}
 
 	shared_ptr<MsGbDevice> dev = it->second;
-	string sql = "update device set ";
-	int startSize = sql.size();
+
+	// Build parameterized SQL to prevent SQL injection
+	vector<string> setClauses;
+	vector<pair<int, string>> textBindings; // index, value
+	vector<pair<int, int>> intBindings;     // index, value
+	int paramIndex = 1;
 
 	if (mm.m_port > 0) {
 		dev->m_port = mm.m_port;
-		sql += "port=";
-		sql += to_string(mm.m_port);
-		sql += " ,";
+		setClauses.push_back("port=?");
+		intBindings.push_back({paramIndex++, mm.m_port});
 	}
 
 	if (mm.m_ipaddr.size()) {
 		dev->m_ipaddr = mm.m_ipaddr;
-		sql += "ip_addr='";
-		sql += mm.m_ipaddr;
-		sql += "' ,";
+		setClauses.push_back("ip_addr=?");
+		textBindings.push_back({paramIndex++, mm.m_ipaddr});
 	}
 
 	if (mm.m_codec.size() && mm.m_codec != dev->m_codec) {
 		dev->m_codec = mm.m_codec;
-		sql += "codec='";
-		sql += mm.m_codec;
-		sql += "' ,";
+		setClauses.push_back("codec=?");
+		textBindings.push_back({paramIndex++, mm.m_codec});
 	}
 
 	if (mm.m_resolution.size() && mm.m_resolution != dev->m_resolution) {
 		dev->m_resolution = mm.m_resolution;
-		sql += "resolution='";
-		sql += mm.m_resolution;
-		sql += "' ,";
+		setClauses.push_back("resolution=?");
+		textBindings.push_back({paramIndex++, mm.m_resolution});
 	}
 
 	if (mm.m_status.size() && mm.m_status != dev->m_status) {
 		dev->m_status = mm.m_status;
-		sql += "status='";
-		sql += mm.m_status;
-		sql += "' ,";
+		setClauses.push_back("status=?");
+		textBindings.push_back({paramIndex++, mm.m_status});
 	}
 
 	if (mm.m_name.size()) {
 		dev->m_name = mm.m_name;
-		sql += "name='";
-		sql += mm.m_name;
-		sql += "' ,";
+		setClauses.push_back("name=?");
+		textBindings.push_back({paramIndex++, mm.m_name});
 	}
 
 	if (mm.m_address.size()) {
 		dev->m_address = mm.m_address;
-		sql += "address='";
-		sql += mm.m_address;
-		sql += "' ,";
+		setClauses.push_back("address=?");
+		textBindings.push_back({paramIndex++, mm.m_address});
 	}
 
 	if (mm.m_user.size()) {
 		dev->m_user = mm.m_user;
-		sql += "user='";
-		sql += mm.m_user;
-		sql += "' ,";
+		setClauses.push_back("user=?");
+		textBindings.push_back({paramIndex++, mm.m_user});
 	}
 
 	if (mm.m_pass.size()) {
 		dev->m_pass = mm.m_pass;
-		sql += "pass='";
-		sql += mm.m_pass;
-		sql += "' ,";
+		setClauses.push_back("pass=?");
+		textBindings.push_back({paramIndex++, mm.m_pass});
 	}
 
 	if (mm.m_civilCode.size()) {
 		dev->m_civilCode = mm.m_civilCode;
-		sql += "civil_code='";
-		sql += mm.m_civilCode;
-		sql += "' ,";
+		setClauses.push_back("civil_code=?");
+		textBindings.push_back({paramIndex++, mm.m_civilCode});
 	}
 
 	if (mm.m_latitude.size()) {
 		dev->m_latitude = mm.m_latitude;
-		sql += "latitude='";
-		sql += mm.m_latitude;
-		sql += "' ,";
+		setClauses.push_back("latitude=?");
+		textBindings.push_back({paramIndex++, mm.m_latitude});
 	}
 
 	if (mm.m_longitude.size()) {
 		dev->m_longitude = mm.m_longitude;
-		sql += "longitude='";
-		sql += mm.m_longitude;
-		sql += "' ,";
+		setClauses.push_back("longitude=?");
+		textBindings.push_back({paramIndex++, mm.m_longitude});
 	}
 
 	if (mm.m_url.size()) {
 		dev->m_url = mm.m_url;
-		sql += "url='";
-		sql += mm.m_url;
-		sql += "' ,";
+		setClauses.push_back("url=?");
+		textBindings.push_back({paramIndex++, mm.m_url});
 	}
 
 	if (mm.m_remark.size()) {
 		dev->m_remark = mm.m_remark;
-		sql += "remark='";
-		sql += mm.m_remark;
-		sql += "' ,";
+		setClauses.push_back("remark=?");
+		textBindings.push_back({paramIndex++, mm.m_remark});
 	}
 
 	if (mm.m_owner.size()) {
 		dev->m_owner = mm.m_owner;
-		sql += "owner='";
-		sql += mm.m_owner;
-		sql += "' ,";
+		setClauses.push_back("owner=?");
+		textBindings.push_back({paramIndex++, mm.m_owner});
 	}
 
 	if (mm.b_bindIP) {
 		dev->m_bindIP = mm.m_bindIP;
-		sql += "bind_ip='";
-		sql += mm.m_bindIP;
-		sql += "' ,";
+		setClauses.push_back("bind_ip=?");
+		textBindings.push_back({paramIndex++, mm.m_bindIP});
 	}
 
 	if (mm.b_ptzType) {
 		dev->m_ptzType = mm.m_ptzType;
-		sql += "ptz_type=";
-		sql += to_string(mm.m_ptzType);
-		sql += " ,";
+		setClauses.push_back("ptz_type=?");
+		intBindings.push_back({paramIndex++, mm.m_ptzType});
 	}
 
 	if (mm.m_onvifprofile.size()) {
 		dev->m_onvifprofile = mm.m_onvifprofile;
-		sql += "onvif_profile='";
-		sql += mm.m_onvifprofile;
-		sql += "' ,";
+		setClauses.push_back("onvif_profile=?");
+		textBindings.push_back({paramIndex++, mm.m_onvifprofile});
 	}
 
 	if (mm.m_onvifptzurl.size()) {
 		dev->m_onvifptzurl = mm.m_onvifptzurl;
-		sql += "onvif_ptz_url='";
-		sql += mm.m_onvifptzurl;
-		sql += "' ,";
+		setClauses.push_back("onvif_ptz_url=?");
+		textBindings.push_back({paramIndex++, mm.m_onvifptzurl});
 	}
 
-	if (sql.size() == startSize) {
+	if (setClauses.empty()) {
 		return;
 	}
 
-	sql.resize(sql.size() - 1);
-	sql += "where device_id='";
-	sql += devId;
-	sql += "'";
+	// Build SQL with placeholders
+	string sql = "UPDATE device SET ";
+	for (size_t i = 0; i < setClauses.size(); ++i) {
+		sql += setClauses[i];
+		if (i < setClauses.size() - 1) {
+			sql += ", ";
+		}
+	}
+	sql += " WHERE device_id=?";
+	int devIdParamIndex = paramIndex;
 
 	sqlite3 *pSql = MsDbMgr::Instance()->GetSql();
+	sqlite3_stmt *pStmt = NULL;
 
-	char *zErrMsg = NULL;
-	int rc = sqlite3_exec(pSql, sql.c_str(), NULL, 0, &zErrMsg);
-	if (rc != SQLITE_OK) {
-		MS_LOG_ERROR("mod device err:%s", zErrMsg);
-		sqlite3_free(zErrMsg);
+	int rc = sqlite3_prepare_v2(pSql, sql.c_str(), -1, &pStmt, NULL);
+	if (rc != SQLITE_OK || !pStmt) {
+		MS_LOG_ERROR("prepare sql failed: %s", sqlite3_errmsg(pSql));
+		MsDbMgr::Instance()->RelSql();
+		return;
 	}
 
+	// Bind all text parameters
+	for (const auto &binding : textBindings) {
+		sqlite3_bind_text(pStmt, binding.first, binding.second.c_str(), -1, SQLITE_TRANSIENT);
+	}
+
+	// Bind all integer parameters
+	for (const auto &binding : intBindings) {
+		sqlite3_bind_int(pStmt, binding.first, binding.second);
+	}
+
+	// Bind the device_id parameter
+	sqlite3_bind_text(pStmt, devIdParamIndex, devId.c_str(), -1, SQLITE_TRANSIENT);
+
+	rc = sqlite3_step(pStmt);
+	if (rc != SQLITE_DONE) {
+		MS_LOG_ERROR("mod device err: %s", sqlite3_errmsg(pSql));
+	}
+
+	sqlite3_finalize(pStmt);
 	MsDbMgr::Instance()->RelSql();
 }
 
