@@ -997,6 +997,10 @@ void MsHttpServer::GetLiveUrl(shared_ptr<MsEvent> evt, MsHttpMsg &msg, char *bod
 	        deviceId.c_str());
 	r["httpFlvUrl"] = bb;
 
+	sprintf(bb, "%s://%s:%d/rtc/whep/%s", protocol.c_str(), ip.c_str(), mn->httpPort,
+	        deviceId.c_str());
+	r["rtcUrl"] = bb;
+
 	jRsp["code"] = 0;
 	jRsp["msg"] = "success";
 	jRsp["result"] = r;

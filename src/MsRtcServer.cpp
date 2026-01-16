@@ -119,6 +119,10 @@ void MsRtcServer::RtcProcess(shared_ptr<SHttpTransferMsg> rtcMsg) {
 			        sessionId.c_str());
 			j["httpTsUrl"] = bb;
 
+			sprintf(bb, "%s%s:%d/rtc/whep/%s", protocol.c_str(), httpIp.c_str(), httpPort,
+			        sessionId.c_str());
+			j["rtcUrl"] = bb;
+
 			sprintf(bb, "rtsp://%s:%d/live/%s", httpIp.c_str(),
 			        MsConfig::Instance()->GetConfigInt("rtspPort"), sessionId.c_str());
 			j["rtspUrl"] = bb;

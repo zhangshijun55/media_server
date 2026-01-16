@@ -24,6 +24,7 @@ A  media server implementation supporting GB/T 28181, RTSP, WebRTC and HTTP stre
   - [GB28181 Integration](#gb28181-integration)
   - [GB28181 Record Playback](#gb28181-record-playback)
   - [WebRTC WHIP Usage](#webrtc-whip-usage)
+  - [WebRTC WHEP Usage](#webrtc-whep-usage)
 
 ## Features
 
@@ -31,7 +32,7 @@ A  media server implementation supporting GB/T 28181, RTSP, WebRTC and HTTP stre
 - **RTSP Server**: Supports Real Time Streaming Protocol (RTSP) for media streaming.
 - **HTTP Server**: Built-in HTTP server for management and signaling.
 - **HTTP Streaming**: Support for media streaming over HTTP.
-- **WebRTC WHIP Support**: Support for WebRTC WHIP protocol.
+- **WebRTC Support**: Support for WebRTC WHIP (publish) and WHEP (playback) protocols.
 - **ONVIF Support**: Includes handling for ONVIF protocol.
 - **Device Management**: Manages connected devices.
 - **Database Integration**: Uses SQLite for data persistence.
@@ -140,6 +141,44 @@ curl -X GET http://127.0.0.1:26080/device
 curl -X GET "http://127.0.0.1:26080/device?deviceId=rtsp_cam_01"
 ```
 
+**Response Example:**
+```json
+{
+  "code": 0,
+  "msg": "success",
+  "result": [
+    {
+      "deviceId": "rtsp_cam_01",
+      "domainId": "domain_01",
+      "name": "Camera 01",
+      "type": "camera",
+      "parentId": ["parent_01"],
+      "status": "online",
+      "manufacturer": "Hikvision",
+      "model": "DS-2CD2T45",
+      "owner": "admin",
+      "civilCode": "110000",
+      "address": "Building A",
+      "ipAddr": "192.168.1.100",
+      "user": "admin",
+      "pass": "******",
+      "port": 554,
+      "longitude": "116.397128",
+      "latitude": "39.916527",
+      "ptzType": 1,
+      "url": "rtsp://192.168.1.100:554/stream1",
+      "protocol": 0,
+      "codec": "H.264",
+      "resolution": "1920x1080",
+      "bindIP": "0.0.0.0",
+      "remark": "Front entrance camera",
+      "onvifProfile": "Profile_1",
+      "onvifPtzUrl": "http://192.168.1.100/onvif/ptz"
+    }
+  ]
+}
+```
+
 ### Add RTSP Device
 
 To add an RTSP device, send a HTTP POST request to `/device` with the following JSON body:
@@ -246,12 +285,15 @@ curl -X POST http://127.0.0.1:26080/device/url \
     "result": {
         "rtspUrl": "rtsp://192.168.1.100:554/live/rtsp_cam_01",
         "httpTsUrl": "http://192.168.1.100:8080/live/rtsp_cam_01.ts",
-        "httpFlvUrl": "http://192.168.1.100:8080/live/rtsp_cam_01.flv"
+        "httpFlvUrl": "http://192.168.1.100:8080/live/rtsp_cam_01.flv",
+        "rtcUrl": "http://192.168.1.100:8080/rtc/whep/rtsp_cam_01"
     }
 }
 ```
 
 **Note:** You can use [mpegts.js](https://github.com/xqq/mpegts.js) to play HTTP-FLV/TS streams in the browser.
+
+**Codec Support:** Media-server only supports H.264, H.265, AAC, and Opus codecs. The `rtcUrl` is for WebRTC WHEP playback. For WHEP, only H.264, H.265, and Opus are supported. AAC audio will be transcoded to Opus automatically.
 
 ### PTZ Control
 
@@ -296,9 +338,15 @@ To query the presets of a device.
 
 **URL:** `http://<server_ip>:<httpPort>/device/preset`
 
-**Method:** `POST`
+**Method:** `GET` or `POST`
 
-**Body:**
+**GET Example:**
+
+```bash
+curl -X GET "http://127.0.0.1:26080/device/preset?deviceId=34020000001320000001"
+```
+
+**POST Body:**
 
 ```json
 {
@@ -307,6 +355,20 @@ To query the presets of a device.
 ```
 
 - `deviceId` (required): The ID of the device.
+
+**Response Example:**
+
+```json
+{
+    "code": 0,
+    "msg": "ok",
+    "result": [
+        {"presetID": "1"},
+        {"presetID": "2"},
+        {"presetID": "3"}
+    ]
+}
+```
 
 ### File Playback
 
@@ -327,6 +389,25 @@ To query the presets of a device.
    **Parameters:**
    - `fileId` (optional): The ID of the specific file to retrieve. If omitted, all files are returned.
 
+   **Response Example:**
+   ```json
+   {
+       "code": 0,
+       "msg": "success",
+       "result": [
+           {
+               "fileId": 1,
+               "fileName": "sample.mp4",
+               "size": 10485760,
+               "codec": "h264",
+               "resolution": "1920x1080",
+               "duration": 120.5,
+               "frameRate": 25.0
+           }
+       ]
+   }
+   ```
+
 3. **Get File Playback URL**
 
    Get the playback URL for a specific file.
@@ -335,6 +416,20 @@ To query the presets of a device.
    **Method:** `GET`
    **Parameters:**
    - `fileId` (required): The ID of the file.
+   - `netType` (optional): Network type preference.
+
+   **Response Example:**
+   ```json
+   {
+       "code": 0,
+       "msg": "success",
+       "result": {
+           "rtspUrl": "rtsp://192.168.1.100:554/vod/abc123xyz/sample.mp4",
+           "httpTsUrl": "http://192.168.1.100:8080/vod/abc123xyz/ts/sample.mp4",
+           "httpFlvUrl": "http://192.168.1.100:8080/vod/abc123xyz/flv/sample.mp4"
+       }
+   }
+   ```
 
 ### GB28181 Integration
 
@@ -389,6 +484,22 @@ To query the presets of a device.
    curl -X GET http://127.0.0.1:26080/gb/domain
    ```
 
+   **Response Example:**
+   ```json
+   {
+       "code": 0,
+       "msg": "success",
+       "result": [
+           {
+               "id": "34020000002000000002",
+               "devNum": 5,
+               "ip": "192.168.1.50",
+               "port": 5060
+           }
+       ]
+   }
+   ```
+
 4. **Sync Device Channel List**
 
    The server usually syncs the device list automatically upon registration. If this does not happen, you can trigger it manually.
@@ -427,6 +538,29 @@ To query the presets of a device.
    - `endTime`: End time
    - `type`: Record type ("all", etc.)
 
+   **Response Example:**
+   ```json
+   {
+       "code": 0,
+       "msg": "success",
+       "result": [
+           {
+               "deviceId": "34020000001320000001",
+               "name": "Recording 1",
+               "startTime": "2023-10-27T10:00:00",
+               "endTime": "2023-10-27T10:30:00",
+               "type": "time"
+           },
+           {
+               "deviceId": "34020000001320000001",
+               "name": "Recording 2",
+               "startTime": "2023-10-27T10:30:00",
+               "endTime": "2023-10-27T11:00:00",
+               "type": "time"
+           }
+       ]
+   }
+   ```
 
 2. **Get Playback URL**
 
@@ -472,12 +606,29 @@ To query the presets of a device.
 
    **Response:** SDP Answer (201 Created)
 
+   **Codec Support:** For WHIP, only H.264, H.265, and Opus codecs are supported.
+
 2. **Get Live Sessions**
 
    Retrieve the list of active WebRTC sessions.
 
    **URL:** `http://<server_ip>:<httpPort>/rtc/session`
    **Method:** `GET`
+
+   **Response Example:**
+   ```json
+   {
+       "code": 0,
+       "msg": "ok",
+       "result": [
+           {
+               "sessionId": "abc123xyz456",
+               "videoCodec": "H264",
+               "audioCodec": "OPUS"
+           }
+       ]
+   }
+   ```
 
 3. **Get Playback URL**
 
@@ -488,4 +639,54 @@ To query the presets of a device.
    **Parameters:**
    - `sessionId` (required): The ID of the session.
 
+   **Response Example:**
+   ```json
+   {
+     "code": 0,
+     "msg": "success",
+     "result": {
+       "httpFlvUrl": "http://192.168.1.100:8080/live/abc123.flv",
+       "httpTsUrl": "http://192.168.1.100:8080/live/abc123.ts",
+       "rtcUrl": "http://192.168.1.100:8080/rtc/whep/abc123",
+       "rtspUrl": "rtsp://192.168.1.100:554/live/abc123"
+     }
+   }
+   ```
+
    **Note:** Converting WebRTC streams to HTTP-FLV requires FFmpeg 8.0 or above.
+
+### WebRTC WHEP Usage
+
+WHEP (WebRTC-HTTP Egress Protocol) allows you to play live streams via WebRTC with ultra-low latency.
+
+**Supported Sources:**
+
+1. **RTSP and GB28181 Live Cameras**
+
+   For RTSP cameras and GB28181 devices, use the `rtcUrl` returned by `GET /device/url`:
+
+   ```
+   GET /device/url?deviceId=<deviceId>
+   ```
+
+   The response `rtcUrl` field (e.g., `http://192.168.1.100:8080/rtc/whep/rtsp_cam_01`) can be used directly with a WHEP client.
+
+2. **WHIP Streams**
+
+   For WebRTC streams published via WHIP, use the `rtcUrl` returned by `GET /rtc/session/url`:
+
+   ```
+   GET /rtc/session/url?sessionId=<sessionId>
+   ```
+
+   The response `rtcUrl` field (e.g., `http://192.168.1.100:8080/rtc/whep/abc123`) can be used directly with a WHEP client.
+
+**WHEP Playback:**
+
+   **URL:** `http://<server_ip>:<httpPort>/rtc/whep/<streamId>`
+   **Method:** `POST`
+   **Body:** SDP Offer
+
+   **Response:** SDP Answer (201 Created)
+
+   **Codec Support:** For WHEP, only H.264, H.265, and Opus codecs are supported. AAC audio will be transcoded to Opus automatically.

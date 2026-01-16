@@ -24,6 +24,7 @@
   - [GB28181 集成](#gb28181-集成)
   - [GB28181 录像回放](#gb28181-录像回放)
   - [WebRTC WHIP 使用](#webrtc-whip-使用)
+  - [WebRTC WHEP 使用](#webrtc-whep-使用)
 
 ## 功能特性
 
@@ -31,7 +32,7 @@
 - **RTSP 服务器**: 支持实时流传输协议 (RTSP) 进行媒体流分发。
 - **HTTP 服务器**: 内置 HTTP 服务器，用于管理和信令交互。
 - **HTTP 流媒体**: 支持通过 HTTP 协议传输媒体流。
-- **WebRTC WHIP 支持**: 支持 WebRTC WHIP 协议。
+- **WebRTC 支持**: 支持 WebRTC WHIP（推流）和 WHEP（播放）协议。
 - **ONVIF 支持**: 包含对 ONVIF 协议的处理。
 - **设备管理**: 管理连接的设备。
 - **数据库集成**: 使用 SQLite 进行数据持久化。
@@ -140,6 +141,44 @@ curl -X GET http://127.0.0.1:26080/device
 curl -X GET "http://127.0.0.1:26080/device?deviceId=rtsp_cam_01"
 ```
 
+**响应示例:**
+```json
+{
+  "code": 0,
+  "msg": "success",
+  "result": [
+    {
+      "deviceId": "rtsp_cam_01",
+      "domainId": "domain_01",
+      "name": "Camera 01",
+      "type": "camera",
+      "parentId": ["parent_01"],
+      "status": "online",
+      "manufacturer": "Hikvision",
+      "model": "DS-2CD2T45",
+      "owner": "admin",
+      "civilCode": "110000",
+      "address": "Building A",
+      "ipAddr": "192.168.1.100",
+      "user": "admin",
+      "pass": "******",
+      "port": 554,
+      "longitude": "116.397128",
+      "latitude": "39.916527",
+      "ptzType": 1,
+      "url": "rtsp://192.168.1.100:554/stream1",
+      "protocol": 0,
+      "codec": "H.264",
+      "resolution": "1920x1080",
+      "bindIP": "0.0.0.0",
+      "remark": "Front entrance camera",
+      "onvifProfile": "Profile_1",
+      "onvifPtzUrl": "http://192.168.1.100/onvif/ptz"
+    }
+  ]
+}
+```
+
 ### 添加 RTSP 设备
 
 要添加 RTSP 设备，请发送 HTTP POST 请求到 `/device`，并在 Body 中包含以下 JSON 数据：
@@ -246,12 +285,15 @@ curl -X POST http://127.0.0.1:26080/device/url \
     "result": {
         "rtspUrl": "rtsp://192.168.1.100:554/live/rtsp_cam_01",
         "httpTsUrl": "http://192.168.1.100:8080/live/rtsp_cam_01.ts",
-        "httpFlvUrl": "http://192.168.1.100:8080/live/rtsp_cam_01.flv"
+        "httpFlvUrl": "http://192.168.1.100:8080/live/rtsp_cam_01.flv",
+        "rtcUrl": "http://192.168.1.100:8080/rtc/whep/rtsp_cam_01"
     }
 }
 ```
 
 **注意:** 您可以使用 [mpegts.js](https://github.com/xqq/mpegts.js) 在浏览器中播放 HTTP-FLV/TS 流。
+
+**编解码器支持:** Media-server 仅支持 H.264、H.265、AAC 和 Opus 编解码器。`rtcUrl` 用于 WebRTC WHEP 播放。对于 WHEP，仅支持 H.264、H.265 和 Opus。AAC 音频将自动转码为 Opus。
 
 ### PTZ 控制
 
@@ -296,9 +338,15 @@ curl -X POST http://127.0.0.1:26080/device/url \
 
 **URL:** `http://<server_ip>:<httpPort>/device/preset`
 
-**方法:** `POST`
+**方法:** `GET` 或 `POST`
 
-**Body:**
+**GET 示例:**
+
+```bash
+curl -X GET "http://127.0.0.1:26080/device/preset?deviceId=34020000001320000001"
+```
+
+**POST Body:**
 
 ```json
 {
@@ -307,6 +355,20 @@ curl -X POST http://127.0.0.1:26080/device/url \
 ```
 
 - `deviceId` (必填): 设备 ID。
+
+**响应示例:**
+
+```json
+{
+    "code": 0,
+    "msg": "ok",
+    "result": [
+        {"presetID": "1"},
+        {"presetID": "2"},
+        {"presetID": "3"}
+    ]
+}
+```
 
 ### 文件回放
 
@@ -327,6 +389,25 @@ curl -X POST http://127.0.0.1:26080/device/url \
    **参数:**
    - `fileId` (可选): 特定文件的文件 ID。如果省略，将返回所有文件。
 
+   **响应示例:**
+   ```json
+   {
+       "code": 0,
+       "msg": "success",
+       "result": [
+           {
+               "fileId": 1,
+               "fileName": "sample.mp4",
+               "size": 10485760,
+               "codec": "h264",
+               "resolution": "1920x1080",
+               "duration": 120.5,
+               "frameRate": 25.0
+           }
+       ]
+   }
+   ```
+
 3. **获取文件播放地址**
 
    获取特定文件的播放地址。
@@ -335,6 +416,20 @@ curl -X POST http://127.0.0.1:26080/device/url \
    **方法:** `GET`
    **参数:**
    - `fileId` (必填): 文件 ID。
+   - `netType` (可选): 网络类型偏好。
+
+   **响应示例:**
+   ```json
+   {
+       "code": 0,
+       "msg": "success",
+       "result": {
+           "rtspUrl": "rtsp://192.168.1.100:554/vod/abc123xyz/sample.mp4",
+           "httpTsUrl": "http://192.168.1.100:8080/vod/abc123xyz/ts/sample.mp4",
+           "httpFlvUrl": "http://192.168.1.100:8080/vod/abc123xyz/flv/sample.mp4"
+       }
+   }
+   ```
 
 ### GB28181 集成
 
@@ -389,6 +484,22 @@ curl -X POST http://127.0.0.1:26080/device/url \
    curl -X GET http://127.0.0.1:26080/gb/domain
    ```
 
+   **响应示例:**
+   ```json
+   {
+       "code": 0,
+       "msg": "success",
+       "result": [
+           {
+               "id": "34020000002000000002",
+               "devNum": 5,
+               "ip": "192.168.1.50",
+               "port": 5060
+           }
+       ]
+   }
+   ```
+
 4. **同步设备通道列表**
 
    服务器通常在注册时自动同步设备列表。如果未同步，您可以手动触发。
@@ -427,7 +538,30 @@ curl -X POST http://127.0.0.1:26080/device/url \
    - `endTime`: 结束时间
    - `type`: 录像类型 ("all" 等)
 
-  
+   **响应示例:**
+   ```json
+   {
+       "code": 0,
+       "msg": "success",
+       "result": [
+           {
+               "deviceId": "34020000001320000001",
+               "name": "录像 1",
+               "startTime": "2023-10-27T10:00:00",
+               "endTime": "2023-10-27T10:30:00",
+               "type": "time"
+           },
+           {
+               "deviceId": "34020000001320000001",
+               "name": "录像 2",
+               "startTime": "2023-10-27T10:30:00",
+               "endTime": "2023-10-27T11:00:00",
+               "type": "time"
+           }
+       ]
+   }
+   ```
+
 2. **获取回放地址**
 
    找到要播放的录像后，请求回放流地址。
@@ -472,12 +606,29 @@ curl -X POST http://127.0.0.1:26080/device/url \
 
    **响应:** SDP Answer (201 Created)
 
+   **编解码器支持:** 对于 WHIP，仅支持 H.264、H.265 和 Opus 编解码器。
+
 2. **获取实时会话**
 
    获取当前活跃的 WebRTC 会话列表。
 
    **URL:** `http://<server_ip>:<httpPort>/rtc/session`
    **Method:** `GET`
+
+   **响应示例:**
+   ```json
+   {
+       "code": 0,
+       "msg": "ok",
+       "result": [
+           {
+               "sessionId": "abc123xyz456",
+               "videoCodec": "H264",
+               "audioCodec": "OPUS"
+           }
+       ]
+   }
+   ```
 
 3. **获取回放地址**
 
@@ -488,4 +639,54 @@ curl -X POST http://127.0.0.1:26080/device/url \
    **参数:**
    - `sessionId` (必填): 会话 ID。
 
+   **响应示例:**
+   ```json
+   {
+     "code": 0,
+     "msg": "success",
+     "result": {
+       "httpFlvUrl": "http://192.168.1.100:8080/live/abc123.flv",
+       "httpTsUrl": "http://192.168.1.100:8080/live/abc123.ts",
+       "rtcUrl": "http://192.168.1.100:8080/rtc/whep/abc123",
+       "rtspUrl": "rtsp://192.168.1.100:554/live/abc123"
+     }
+   }
+   ```
+
    **注意:** 将 WebRTC 流转换为 HTTP-FLV 需要 FFmpeg 8.0 或更高版本。
+
+### WebRTC WHEP 使用
+
+WHEP (WebRTC-HTTP Egress Protocol) 允许您通过 WebRTC 以超低延迟播放直播流。
+
+**支持的源:**
+
+1. **RTSP 和 GB28181 直播摄像头**
+
+   对于 RTSP 摄像头和 GB28181 设备，使用 `GET /device/url` 返回的 `rtcUrl`:
+
+   ```
+   GET /device/url?deviceId=<deviceId>
+   ```
+
+   响应中的 `rtcUrl` 字段 (如 `http://192.168.1.100:8080/rtc/whep/rtsp_cam_01`) 可以直接用于 WHEP 客户端。
+
+2. **WHIP 流**
+
+   对于通过 WHIP 推送的 WebRTC 流，使用 `GET /rtc/session/url` 返回的 `rtcUrl`:
+
+   ```
+   GET /rtc/session/url?sessionId=<sessionId>
+   ```
+
+   响应中的 `rtcUrl` 字段 (如 `http://192.168.1.100:8080/rtc/whep/abc123`) 可以直接用于 WHEP 客户端。
+
+**WHEP 播放:**
+
+   **URL:** `http://<server_ip>:<httpPort>/rtc/whep/<streamId>`
+   **Method:** `POST`
+   **Body:** SDP Offer
+
+   **响应:** SDP Answer (201 Created)
+
+   **编解码器支持:** 对于 WHEP，仅支持 H.264、H.265 和 Opus 编解码器。AAC 音频将自动转码为 Opus。
