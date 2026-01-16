@@ -26,6 +26,7 @@ find_package(PkgConfig REQUIRED)
 pkg_search_module(AVCODEC REQUIRED IMPORTED_TARGET libavcodec)
 pkg_search_module(AVFORMAT REQUIRED IMPORTED_TARGET libavformat)
 pkg_search_module(AVUTIL REQUIRED IMPORTED_TARGET libavutil)
+pkg_search_module(SWRESAMPLE REQUIRED IMPORTED_TARGET libswresample)
 pkg_search_module(SQLITE3 REQUIRED IMPORTED_TARGET sqlite3)
 
 # Add source files from src directory
@@ -95,6 +96,7 @@ target_link_libraries(media_server PRIVATE
     PkgConfig::AVCODEC
     PkgConfig::AVFORMAT
     PkgConfig::AVUTIL
+    PkgConfig::SWRESAMPLE
     PkgConfig::SQLITE3
 )
 

@@ -43,7 +43,7 @@
 
 - **C++ 编译器**: 支持 C++17 标准。
 - **CMake**: 版本 3.10 或更高。
-- **FFmpeg**: 需要 `libavcodec`, `libavformat`, 和 `libavutil` 库。推荐版本 8.0 及以上。
+- **FFmpeg**: 需要 `libavcodec`, `libavformat`, `libavutil` 和 `libswresample` 库。推荐版本 8.0 及以上。
 - **SQLite3**: 需在系统中安装 `sqlite3` 库和头文件。
 - **TinyXML2**: 已包含源码。
 - **OpenSSL** (可选): 仅在启用 HTTPS 支持时需要。

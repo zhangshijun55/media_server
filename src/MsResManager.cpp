@@ -51,7 +51,7 @@ std::shared_ptr<MsMediaSource> MsResManager::GetMediaSource(const std::string &k
 shared_ptr<MsMediaSource> MsResManager::GetOrCreateMediaSource(const std::string &type,
                                                                const std::string &streamID,
                                                                const std::string &streamInfo,
-                                                               shared_ptr<MsMediaSink> &sink) {
+                                                               shared_ptr<MsMediaSink> sink) {
 	std::shared_ptr<MsMediaSource> source;
 	if (type == "live") {
 		source = this->GetMediaSource(streamID);

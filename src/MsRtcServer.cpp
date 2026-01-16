@@ -471,22 +471,6 @@ void MsRtcServer::WhepProcess(shared_ptr<SHttpTransferMsg> rtcMsg) {
 			return;
 		}
 
-		// Check if the source exists
-		bool newSource = false;
-		auto source = MsResManager::GetInstance().GetMediaSource(streamId);
-		if (!source) {
-			source = MsSourceFactory::CreateLiveSource(streamId);
-			newSource = true;
-		}
-		if (!source) {
-			MS_LOG_WARN("whep stream %s not found", streamId.c_str());
-			MsHttpMsg rsp;
-			rsp.m_version = msg.m_version;
-			rsp.m_status = "404";
-			rsp.m_reason = "Not Found";
-			SendHttpRspEx(sock.get(), rsp);
-			return;
-		}
 		string sessionId = GenRandStr(16);
 		string httpIp = MsConfig::Instance()->GetConfigStr("localBindIP");
 		int httpPort = MsConfig::Instance()->GetConfigInt("httpPort");
@@ -525,11 +509,21 @@ void MsRtcServer::WhepProcess(shared_ptr<SHttpTransferMsg> rtcMsg) {
 			m_whepSinkMap[sessionId] = rtcSink;
 		}
 
-		// Add sink to source - OnStreamInfo will be called and will create the SDP answer
-		source->AddSink(rtcSink);
-		if (newSource) {
-			source->Work();
+		// Check if the source exists
+		auto source =
+		    MsResManager::GetInstance().GetOrCreateMediaSource("live", streamId, "", rtcSink);
+
+		if (!source) {
+			MS_LOG_WARN("whep stream %s not found", streamId.c_str());
+			MsHttpMsg rsp;
+			rsp.m_version = msg.m_version;
+			rsp.m_status = "404";
+			rsp.m_reason = "Not Found";
+			SendHttpRspEx(sock.get(), rsp);
+			rtcSink->SinkActiveClose();
+			return;
 		}
+
 		MS_LOG_INFO("whep sink %s added to source %s", sessionId.c_str(), streamId.c_str());
 
 	} else if (msg.m_method == "DELETE") {

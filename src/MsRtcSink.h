@@ -10,6 +10,12 @@
 #include <queue>
 #include <thread>
 
+extern "C" {
+#include <libavcodec/avcodec.h>
+#include <libavutil/audio_fifo.h>
+#include <libswresample/swresample.h>
+}
+
 class MsRtcSink : public MsMediaSink, public enable_shared_from_this<MsRtcSink> {
 public:
 	MsRtcSink(const std::string &type, const std::string &streamID, int sinkID,
@@ -50,7 +56,10 @@ public:
 private:
 	void ReleaseResources();
 	int CreateTracksAndAnswer();
-	void StartRtpMux();
+	int InitAacToOpusTranscoder();
+	void ReleaseTranscoder();
+	void ProcessPkt(AVPacket *pkt);
+	void TranscodeAAC(AVPacket *pkt, std::vector<AVPacket *> &opusPkts);
 
 	bool m_streamReady = false;
 	bool m_error = false;
@@ -60,8 +69,10 @@ private:
 	int64_t m_firstVideoDts = 0;
 	int64_t m_firstAudioPts = 0;
 	int64_t m_firstAudioDts = 0;
+	bool m_needTranscode = false;
 
 	std::queue<AVPacket *> m_queAudioPkts;
+	std::queue<AVPacket *> m_queVideoPkts;
 	std::unique_ptr<std::thread> m_muxThread;
 
 	AVFormatContext *m_videoFmtCtx = nullptr;
@@ -72,6 +83,15 @@ private:
 	AVStream *m_outAudio = nullptr;
 	int m_outVideoIdx = 0;
 	int m_outAudioIdx = 0;
+
+	// AAC to Opus transcoding
+	AVCodecContext *m_aacDecCtx = nullptr;
+	AVCodecContext *m_opusEncCtx = nullptr;
+	SwrContext *m_swrCtx = nullptr;
+	AVFrame *m_decodedFrame = nullptr;
+	AVFrame *m_opusFrame = nullptr;
+	AVAudioFifo *m_audioFifo = nullptr;
+	int64_t m_nextOpusPts = 0;
 };
 
 #endif // MS_RTC_SINK_H

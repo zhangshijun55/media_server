@@ -362,9 +362,9 @@ void MsHttpSink::OnStreamPacket(AVPacket *pkt) {
 		m_queAudioPkts.pop();
 		int64_t ori_ms = orig_pts * 1000L * inSt->time_base.num / inSt->time_base.den;
 		int64_t apkt_ms = apkt->pts * 1000L * m_audio->time_base.num / m_audio->time_base.den;
-		int64_t diff = abs(ori_ms - apkt_ms);
+		int64_t diff = apkt_ms - ori_ms;
 
-		if (diff < 131) { // allow max 131ms diff
+		if (diff > -131) { // allow max 131ms diff
 			// send pkt
 			this->OnStreamPacket(apkt);
 		} else {

@@ -22,7 +22,7 @@ jobs:
     - name: Install dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y libavcodec-dev libavformat-dev libavutil-dev pkg-config libssl-dev libsqlite3-dev
+        sudo apt-get install -y libavcodec-dev libavformat-dev libavutil-dev libswresample-dev pkg-config libssl-dev libsqlite3-dev
 
     - name: Install LibDataChannel
       run: |

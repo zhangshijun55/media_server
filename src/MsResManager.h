@@ -15,7 +15,7 @@ public:
 	shared_ptr<MsMediaSource> GetOrCreateMediaSource(const std::string &type,
 	                                                 const std::string &key,
 	                                                 const std::string &streamInfo,
-	                                                 shared_ptr<MsMediaSink> &sink);
+	                                                 shared_ptr<MsMediaSink> sink);
 
 private:
 	MsResManager() = default;

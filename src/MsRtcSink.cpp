@@ -8,7 +8,14 @@
 #include "MsReactor.h"
 #include "MsThreadPool.h"
 
+extern "C" {
+#include <libavutil/channel_layout.h>
+#include <libavutil/opt.h>
+}
+
 void MsRtcSink::ReleaseResources() {
+	ReleaseTranscoder();
+
 	if (m_videoFmtCtx) {
 		if (m_videoFmtCtx->pb) {
 			av_freep(&m_videoFmtCtx->pb->buffer);
@@ -41,8 +48,13 @@ void MsRtcSink::ReleaseResources() {
 		m_queAudioPkts.pop();
 	}
 
-	if (_onWhepPeerClosed) {
+	while (m_queVideoPkts.size() > 0) {
+		AVPacket *pkt = m_queVideoPkts.front();
+		av_packet_free(&pkt);
+		m_queVideoPkts.pop();
+	}
 
+	if (_onWhepPeerClosed) {
 		_onWhepPeerClosed(_sessionId);
 		_onWhepPeerClosed = nullptr;
 	}
@@ -102,43 +114,143 @@ int MsRtcSink::CreateTracksAndAnswer() {
 				continue;
 			}
 
-			MS_LOG_INFO("whep:%s offer media:%s pt:%d codec:%s", _sessionId.c_str(), type.c_str(),
-			            pt, rtpMap->format.c_str());
 			if ((rtpMap->format == "OPUS" || rtpMap->format == "opus") && m_audio && !_audioTrack) {
-				if (m_audio->codecpar->codec_id == AV_CODEC_ID_OPUS) {
-					_audioPt = pt;
-					_audioCodec = rtpMap->format;
+				MS_LOG_INFO("whep:%s setup audio track, codec: %s, pt: %d", _sessionId.c_str(),
+				            rtpMap->format.c_str(), pt);
+				_audioPt = pt;
+				_audioCodec = rtpMap->format;
 
-					rtc::Description::Audio audioDesc(pMedia->mid());
-					audioDesc.addOpusCodec(pt);
-					auto ssrcs = pMedia->getSSRCs();
-					for (auto ssrc : ssrcs) {
-						audioDesc.addSSRC(ssrc, pMedia->getCNameForSsrc(ssrc));
+				// Setup audio RTP muxer if audio exists
+				if (m_audio) {
+					// Initialize AAC to Opus transcoder if input is AAC
+					if (m_audio->codecpar->codec_id == AV_CODEC_ID_AAC) {
+						if (InitAacToOpusTranscoder() < 0) {
+							MS_LOG_ERROR("Failed to initialize AAC to Opus transcoder");
+							return -1;
+						}
 					}
-					_audioTrack = _pc->addTrack(std::move(audioDesc));
-				} else if (m_audio->codecpar->codec_id == AV_CODEC_ID_AAC) {
-					// do not support AAC in whep for now
+
+					int buf_size = 2048;
+					int ret;
+					AVDictionary *opts = nullptr;
+					char ptStr[8];
+
+					m_audioPb = avio_alloc_context(
+					    static_cast<unsigned char *>(av_malloc(buf_size)), buf_size, 1, this,
+					    nullptr,
+					    [](void *opaque, IO_WRITE_BUF_TYPE *buf, int buf_size) -> int {
+						    MsRtcSink *sink = static_cast<MsRtcSink *>(opaque);
+						    return sink->WriteBuffer(buf, buf_size, 0);
+					    },
+					    nullptr);
+					m_audioPb->max_packet_size = 1200;
+
+					avformat_alloc_output_context2(&m_audioFmtCtx, nullptr, "rtp", nullptr);
+					if (!m_audioFmtCtx || !m_audioPb) {
+						MS_LOG_ERROR("Failed to allocate audio format context or IO context");
+						return -1;
+					}
+
+					m_audioFmtCtx->pb = m_audioPb;
+					m_audioFmtCtx->flags |= AVFMT_FLAG_CUSTOM_IO;
+
+					m_outAudio = avformat_new_stream(m_audioFmtCtx, NULL);
+
+					// If transcoding, use Opus parameters; otherwise copy from input
+					if (m_needTranscode && m_opusEncCtx) {
+						ret = avcodec_parameters_from_context(m_outAudio->codecpar, m_opusEncCtx);
+						if (ret < 0) {
+							MS_LOG_ERROR("Failed to copy Opus codec parameters");
+							return -1;
+						}
+						m_outAudio->time_base = m_opusEncCtx->time_base;
+					} else {
+						ret = avcodec_parameters_copy(m_outAudio->codecpar, m_audio->codecpar);
+						if (ret < 0) {
+							MS_LOG_ERROR("Failed to copy audio codec parameters");
+							return -1;
+						}
+					}
+					m_outAudio->codecpar->codec_tag = 0;
+
+					// Set RTP payload type for audio
+					snprintf(ptStr, sizeof(ptStr), "%d", _audioPt);
+					av_dict_set(&opts, "payload_type", ptStr, 0);
+					av_dict_set(&opts, "rtpflags", "skip_rtcp", 0);
+					ret = avformat_write_header(m_audioFmtCtx, &opts);
+					av_dict_free(&opts);
+					if (ret < 0) {
+						MS_LOG_ERROR("Error writing audio RTP header");
+						return -1;
+					}
 				}
-			} else if (rtpMap->format == "H264" && !_videoTrack) {
-				if (m_video->codecpar->codec_id == AV_CODEC_ID_H264) {
+
+				rtc::Description::Audio audioDesc(pMedia->mid());
+				audioDesc.addOpusCodec(pt);
+				auto ssrcs = pMedia->getSSRCs();
+				for (auto ssrc : ssrcs) {
+					audioDesc.addSSRC(ssrc, pMedia->getCNameForSsrc(ssrc));
+				}
+				_audioTrack = _pc->addTrack(std::move(audioDesc));
+			} else if ((rtpMap->format == "H264" || rtpMap->format == "H265") && !_videoTrack) {
+				MS_LOG_INFO("whep:%s setup video track, codec: %s, pt: %d", _sessionId.c_str(),
+				            rtpMap->format.c_str(), pt);
+				bool isH264 = (rtpMap->format == "H264");
+				if ((isH264 && m_video->codecpar->codec_id == AV_CODEC_ID_H264) ||
+				    (!isH264 && m_video->codecpar->codec_id == AV_CODEC_ID_H265)) {
 					_videoPt = pt;
 					_videoCodec = rtpMap->format;
 
-					rtc::Description::Video videoDesc(pMedia->mid());
-					videoDesc.addH264Codec(pt);
-					auto ssrcs = pMedia->getSSRCs();
-					for (auto ssrc : ssrcs) {
-						videoDesc.addSSRC(ssrc, pMedia->getCNameForSsrc(ssrc));
+					int buf_size = 2048;
+					int ret;
+					AVDictionary *opts = nullptr;
+					char ptStr[8];
+
+					// Setup video RTP muxer
+					m_videoPb = avio_alloc_context(
+					    static_cast<unsigned char *>(av_malloc(buf_size)), buf_size, 1, this,
+					    nullptr,
+					    [](void *opaque, IO_WRITE_BUF_TYPE *buf, int buf_size) -> int {
+						    MsRtcSink *sink = static_cast<MsRtcSink *>(opaque);
+						    return sink->WriteBuffer(buf, buf_size, 1);
+					    },
+					    nullptr);
+					m_videoPb->max_packet_size = 1200; // MTU for WebRTC
+
+					avformat_alloc_output_context2(&m_videoFmtCtx, nullptr, "rtp", nullptr);
+					if (!m_videoFmtCtx || !m_videoPb) {
+						MS_LOG_ERROR("Failed to allocate video format context or IO context");
+						return -1;
 					}
-					_videoTrack = _pc->addTrack(std::move(videoDesc));
-				}
-			} else if (rtpMap->format == "H265" && !_videoTrack) {
-				if (m_video->codecpar->codec_id == AV_CODEC_ID_H265) {
-					_videoPt = pt;
-					_videoCodec = rtpMap->format;
+
+					m_videoFmtCtx->pb = m_videoPb;
+					m_videoFmtCtx->flags |= AVFMT_FLAG_CUSTOM_IO;
+
+					m_outVideo = avformat_new_stream(m_videoFmtCtx, NULL);
+					ret = avcodec_parameters_copy(m_outVideo->codecpar, m_video->codecpar);
+					if (ret < 0) {
+						MS_LOG_ERROR("Failed to copy video codec parameters");
+						return -1;
+					}
+					m_outVideo->codecpar->codec_tag = 0;
+
+					// Set RTP payload type for video
+					snprintf(ptStr, sizeof(ptStr), "%d", _videoPt);
+					av_dict_set(&opts, "payload_type", ptStr, 0);
+					av_dict_set(&opts, "rtpflags", "skip_rtcp", 0);
+					ret = avformat_write_header(m_videoFmtCtx, &opts);
+					av_dict_free(&opts);
+					if (ret < 0) {
+						MS_LOG_ERROR("Error writing video RTP header");
+						return -1;
+					}
 
 					rtc::Description::Video videoDesc(pMedia->mid());
-					videoDesc.addH265Codec(pt);
+					if (isH264) {
+						videoDesc.addH264Codec(pt);
+					} else {
+						videoDesc.addH265Codec(pt);
+					}
 					auto ssrcs = pMedia->getSSRCs();
 					for (auto ssrc : ssrcs) {
 						videoDesc.addSSRC(ssrc, pMedia->getCNameForSsrc(ssrc));
@@ -152,7 +264,7 @@ int MsRtcSink::CreateTracksAndAnswer() {
 	// Setup state change callback
 	string sessionId = _sessionId;
 	auto onPeerClosed = _onWhepPeerClosed;
-	_pc->onStateChange([sessionId, onPeerClosed](rtc::PeerConnection::State state) {
+	_pc->onStateChange([this, sessionId, onPeerClosed](rtc::PeerConnection::State state) {
 		string strState;
 		switch (state) {
 		case rtc::PeerConnection::State::New:
@@ -163,6 +275,7 @@ int MsRtcSink::CreateTracksAndAnswer() {
 			break;
 		case rtc::PeerConnection::State::Connected:
 			strState = "Connected";
+			m_streamReady = true;
 			break;
 		case rtc::PeerConnection::State::Disconnected:
 			strState = "Disconnected";
@@ -210,8 +323,6 @@ int MsRtcSink::CreateTracksAndAnswer() {
 			auto sock = weak_sock.lock();
 			if (!sock)
 				return;
-
-			MsThreadPool::Instance().enqueue([this]() { this->StartRtpMux(); });
 
 			auto description = pc->localDescription();
 			string sdp = description->generateSdp();
@@ -267,148 +378,6 @@ int MsRtcSink::CreateTracksAndAnswer() {
 	return 0;
 }
 
-void MsRtcSink::StartRtpMux() {
-	if (m_streamReady) {
-		MS_LOG_INFO("whep:%s RTP muxing thread already started", _sessionId.c_str());
-		return;
-	}
-
-	if (m_error) {
-		MS_LOG_WARN("whep:%s cannot start muxing thread, sink in error state", _sessionId.c_str());
-		this->SinkActiveClose();
-		return;
-	}
-
-	if (_videoPt == 0 && _audioPt == 0) {
-		MS_LOG_WARN("whep:%s no valid tracks to mux, sink in error state", _sessionId.c_str());
-		this->SinkActiveClose();
-		return;
-	}
-
-	int buf_size = 2048;
-	int ret;
-	AVDictionary *opts = nullptr;
-	char ptStr[8];
-
-	// Setup video RTP muxer
-	m_videoPb = avio_alloc_context(
-	    static_cast<unsigned char *>(av_malloc(buf_size)), buf_size, 1, this, nullptr,
-	    [](void *opaque, IO_WRITE_BUF_TYPE *buf, int buf_size) -> int {
-		    MsRtcSink *sink = static_cast<MsRtcSink *>(opaque);
-		    return sink->WriteBuffer(buf, buf_size, 1);
-	    },
-	    nullptr);
-	m_videoPb->max_packet_size = 1200; // MTU for WebRTC
-
-	avformat_alloc_output_context2(&m_videoFmtCtx, nullptr, "rtp", nullptr);
-	if (!m_videoFmtCtx || !m_videoPb) {
-		MS_LOG_ERROR("Failed to allocate video format context or IO context");
-		goto err;
-	}
-
-	m_videoFmtCtx->pb = m_videoPb;
-	m_videoFmtCtx->flags |= AVFMT_FLAG_CUSTOM_IO;
-
-	m_outVideo = avformat_new_stream(m_videoFmtCtx, NULL);
-	ret = avcodec_parameters_copy(m_outVideo->codecpar, m_video->codecpar);
-	if (ret < 0) {
-		MS_LOG_ERROR("Failed to copy video codec parameters");
-		goto err;
-	}
-	m_outVideo->codecpar->codec_tag = 0;
-
-	// Set RTP payload type for video
-	snprintf(ptStr, sizeof(ptStr), "%d", _videoPt);
-	av_dict_set(&opts, "payload_type", ptStr, 0);
-	av_dict_set(&opts, "rtpflags", "skip_rtcp", 0);
-	ret = avformat_write_header(m_videoFmtCtx, &opts);
-	av_dict_free(&opts);
-	if (ret < 0) {
-		MS_LOG_ERROR("Error writing video RTP header");
-		goto err;
-	}
-
-	// Setup audio RTP muxer if audio exists
-	if (m_audio && _audioPt != 0) {
-		m_audioPb = avio_alloc_context(
-		    static_cast<unsigned char *>(av_malloc(buf_size)), buf_size, 1, this, nullptr,
-		    [](void *opaque, IO_WRITE_BUF_TYPE *buf, int buf_size) -> int {
-			    MsRtcSink *sink = static_cast<MsRtcSink *>(opaque);
-			    return sink->WriteBuffer(buf, buf_size, 0);
-		    },
-		    nullptr);
-		m_audioPb->max_packet_size = 1200;
-
-		avformat_alloc_output_context2(&m_audioFmtCtx, nullptr, "rtp", nullptr);
-		if (!m_audioFmtCtx || !m_audioPb) {
-			MS_LOG_ERROR("Failed to allocate audio format context or IO context");
-			goto err;
-		}
-
-		m_audioFmtCtx->pb = m_audioPb;
-		m_audioFmtCtx->flags |= AVFMT_FLAG_CUSTOM_IO;
-
-		m_outAudio = avformat_new_stream(m_audioFmtCtx, NULL);
-		ret = avcodec_parameters_copy(m_outAudio->codecpar, m_audio->codecpar);
-		if (ret < 0) {
-			MS_LOG_ERROR("Failed to copy audio codec parameters");
-			goto err;
-		}
-		m_outAudio->codecpar->codec_tag = 0;
-
-		AVCodecParameters *codecpar = m_outAudio->codecpar;
-		// Generate AAC extradata if missing
-		if (codecpar->extradata_size == 0 && codecpar->sample_rate > 0 &&
-		    codecpar->ch_layout.nb_channels > 0 && codecpar->ch_layout.nb_channels < 3 &&
-		    codecpar->codec_id == AV_CODEC_ID_AAC) {
-			int samplingFrequencyIndex = 15;
-			const static int sampleRateTable[] = {96000, 88200, 64000, 48000, 44100, 32000, 24000,
-			                                      22050, 16000, 12000, 11025, 8000,  7350};
-			for (int i = 0; i < 13; i++) {
-				if (sampleRateTable[i] == codecpar->sample_rate) {
-					samplingFrequencyIndex = i;
-					break;
-				}
-			}
-
-			int audioObjectType = (codecpar->profile > 0) ? codecpar->profile + 1 : 2;
-			int channelConfiguration = codecpar->ch_layout.nb_channels;
-
-			uint16_t config = 0;
-			config |= (audioObjectType & 0x1F) << 11;
-			config |= (samplingFrequencyIndex & 0x0F) << 7;
-			config |= (channelConfiguration & 0x0F) << 3;
-
-			uint8_t extradata[2];
-			extradata[0] = (config >> 8) & 0xFF;
-			extradata[1] = config & 0xFF;
-
-			codecpar->extradata = (uint8_t *)av_mallocz(2 + AV_INPUT_BUFFER_PADDING_SIZE);
-			memcpy(codecpar->extradata, extradata, 2);
-			codecpar->extradata_size = 2;
-		}
-
-		// Set RTP payload type for audio
-		snprintf(ptStr, sizeof(ptStr), "%d", _audioPt);
-		av_dict_set(&opts, "payload_type", ptStr, 0);
-		av_dict_set(&opts, "rtpflags", "skip_rtcp", 0);
-		ret = avformat_write_header(m_audioFmtCtx, &opts);
-		av_dict_free(&opts);
-		if (ret < 0) {
-			MS_LOG_ERROR("Error writing audio RTP header");
-			goto err;
-		}
-	}
-
-	m_streamReady = true;
-	MS_LOG_INFO("MsRtcSink %s stream ready, video:%s audio:%s", _sessionId.c_str(),
-	            _videoCodec.c_str(), _audioCodec.c_str());
-	return;
-
-err:
-	this->SinkActiveClose();
-}
-
 void MsRtcSink::OnStreamInfo(AVStream *video, int videoIdx, AVStream *audio, int audioIdx) {
 	if (m_error || !video)
 		return;
@@ -430,9 +399,251 @@ err:
 
 void MsRtcSink::OnStreamPacket(AVPacket *pkt) {
 	if (!m_streamReady || m_error) {
+		if (m_error) {
+			MS_LOG_WARN("whep:%s cannot process packet, sink in error state", _sessionId.c_str());
+			return;
+		}
+
+		if (pkt->stream_index == m_videoIdx) {
+			m_queVideoPkts.push(av_packet_clone(pkt));
+		} else {
+			m_queAudioPkts.push(av_packet_clone(pkt));
+		}
+
 		return;
 	}
 
+	while (m_queVideoPkts.size() > 0) {
+		AVPacket *vpk = m_queVideoPkts.front();
+		m_queVideoPkts.pop();
+		this->ProcessPkt(vpk);
+		av_packet_free(&vpk);
+	}
+
+	this->ProcessPkt(pkt);
+}
+
+int MsRtcSink::InitAacToOpusTranscoder() {
+	if (!m_audio || m_audio->codecpar->codec_id != AV_CODEC_ID_AAC) {
+		return 0; // No transcoding needed
+	}
+
+	m_needTranscode = true;
+	int ret;
+
+	// Initialize AAC decoder
+	const AVCodec *aacDecoder = avcodec_find_decoder(AV_CODEC_ID_AAC);
+	if (!aacDecoder) {
+		MS_LOG_ERROR("whep:%s AAC decoder not found", _sessionId.c_str());
+		return -1;
+	}
+
+	m_aacDecCtx = avcodec_alloc_context3(aacDecoder);
+	if (!m_aacDecCtx) {
+		MS_LOG_ERROR("whep:%s failed to allocate AAC decoder context", _sessionId.c_str());
+		return -1;
+	}
+
+	ret = avcodec_parameters_to_context(m_aacDecCtx, m_audio->codecpar);
+	if (ret < 0) {
+		MS_LOG_ERROR("whep:%s failed to copy AAC codec parameters", _sessionId.c_str());
+		return -1;
+	}
+
+	ret = avcodec_open2(m_aacDecCtx, aacDecoder, nullptr);
+	if (ret < 0) {
+		MS_LOG_ERROR("whep:%s failed to open AAC decoder", _sessionId.c_str());
+		return -1;
+	}
+
+	// Initialize Opus encoder
+	const AVCodec *opusEncoder = avcodec_find_encoder(AV_CODEC_ID_OPUS);
+	if (!opusEncoder) {
+		MS_LOG_ERROR("whep:%s Opus encoder not found", _sessionId.c_str());
+		return -1;
+	}
+
+	m_opusEncCtx = avcodec_alloc_context3(opusEncoder);
+	if (!m_opusEncCtx) {
+		MS_LOG_ERROR("whep:%s failed to allocate Opus encoder context", _sessionId.c_str());
+		return -1;
+	}
+
+	// Configure Opus encoder - WebRTC typically uses 48kHz stereo
+	m_opusEncCtx->sample_rate = 48000;
+	m_opusEncCtx->bit_rate = 64000;
+	m_opusEncCtx->sample_fmt = AV_SAMPLE_FMT_FLT;
+	m_opusEncCtx->time_base = (AVRational){1, 48000};
+
+#if LIBAVUTIL_VERSION_MAJOR >= 58
+	AVChannelLayout chLayout = AV_CHANNEL_LAYOUT_STEREO;
+	av_channel_layout_copy(&m_opusEncCtx->ch_layout, &chLayout);
+#else
+	m_opusEncCtx->channels = 2;
+	m_opusEncCtx->channel_layout = AV_CH_LAYOUT_STEREO;
+#endif
+
+	// Low latency settings for Opus
+	// av_opt_set(m_opusEncCtx->priv_data, "application", "lowdelay", 0);
+	// // av_opt_set_int(m_opusEncCtx->priv_data, "packet_loss", 0, 0);
+	// av_opt_set_int(m_opusEncCtx->priv_data, "frame_duration", 20, 0); // 20ms frames
+
+	ret = avcodec_open2(m_opusEncCtx, opusEncoder, nullptr);
+	if (ret < 0) {
+		char errbuf[AV_ERROR_MAX_STRING_SIZE] = {0};
+		av_strerror(ret, errbuf, sizeof(errbuf));
+		MS_LOG_ERROR("whep:%s failed to open Opus encoder: %s", _sessionId.c_str(), errbuf);
+		return -1;
+	}
+
+	m_swrCtx = swr_alloc();
+	av_opt_set_chlayout(m_swrCtx, "in_chlayout", &m_aacDecCtx->ch_layout, 0);
+	av_opt_set_int(m_swrCtx, "in_sample_rate", m_aacDecCtx->sample_rate, 0);
+	av_opt_set_sample_fmt(m_swrCtx, "in_sample_fmt", m_aacDecCtx->sample_fmt, 0);
+
+	av_opt_set_chlayout(m_swrCtx, "out_chlayout", &m_opusEncCtx->ch_layout, 0);
+	av_opt_set_int(m_swrCtx, "out_sample_rate", m_opusEncCtx->sample_rate, 0);
+	av_opt_set_sample_fmt(m_swrCtx, "out_sample_fmt", m_opusEncCtx->sample_fmt, 0);
+
+	ret = swr_init(m_swrCtx);
+	if (ret < 0) {
+		MS_LOG_ERROR("whep:%s failed to initialize SwrContext", _sessionId.c_str());
+		return -1;
+	}
+
+	// FIFO to buffer samples until we have enough for one Opus frame
+	m_audioFifo =
+	    av_audio_fifo_alloc(m_opusEncCtx->sample_fmt, m_opusEncCtx->ch_layout.nb_channels, 4096);
+
+	// Allocate frames
+	m_decodedFrame = av_frame_alloc();
+	m_opusFrame = av_frame_alloc();
+
+	// Pre-allocate Opus frame buffer
+	m_opusFrame->nb_samples = m_opusEncCtx->frame_size;
+	m_opusFrame->format = m_opusEncCtx->sample_fmt;
+	m_opusFrame->ch_layout = m_opusEncCtx->ch_layout;
+	m_opusFrame->sample_rate = m_opusEncCtx->sample_rate;
+
+	ret = av_frame_get_buffer(m_opusFrame, 0);
+	if (ret < 0) {
+		MS_LOG_ERROR("whep:%s failed to allocate resampled frame buffer", _sessionId.c_str());
+		return -1;
+	}
+
+	m_nextOpusPts = 0;
+	MS_LOG_INFO("whep:%s AAC to Opus transcoder initialized, AAC %dHz -> Opus %dHz",
+	            _sessionId.c_str(), m_aacDecCtx->sample_rate, m_opusEncCtx->sample_rate);
+
+	return 0;
+}
+
+void MsRtcSink::TranscodeAAC(AVPacket *pkt, std::vector<AVPacket *> &opusPkts) {
+	if (!m_aacDecCtx || !m_opusEncCtx || !m_swrCtx) {
+		MS_LOG_WARN("whep:%s transcoder not initialized", _sessionId.c_str());
+		return;
+	}
+
+	int ret;
+
+	ret = avcodec_send_packet(m_aacDecCtx, pkt);
+	if (ret < 0) {
+		MS_LOG_DEBUG("whep:%s error:%d sending AAC packet to decoder", _sessionId.c_str(), ret);
+		if (ret != AVERROR(EAGAIN) && ret != AVERROR_EOF) {
+			MS_LOG_WARN("whep:%s error sending AAC packet to decoder", _sessionId.c_str());
+		}
+		return;
+	}
+
+	// Receive decoded frame
+	ret = avcodec_receive_frame(m_aacDecCtx, m_decodedFrame);
+	if (ret < 0) {
+		MS_LOG_DEBUG("whep:%s error:%d receiving decoded frame", _sessionId.c_str(), ret);
+		if (ret != AVERROR(EAGAIN) && ret != AVERROR_EOF) {
+			MS_LOG_WARN("whep:%s error receiving decoded frame", _sessionId.c_str());
+		}
+		return;
+	}
+
+	int dst_nb_samples = av_rescale_rnd(
+	    swr_get_delay(m_swrCtx, m_aacDecCtx->sample_rate) + m_decodedFrame->nb_samples,
+	    m_opusEncCtx->sample_rate, m_aacDecCtx->sample_rate, AV_ROUND_UP);
+
+	uint8_t **converted_data = nullptr;
+	int linesize;
+	av_samples_alloc_array_and_samples(&converted_data, &linesize,
+	                                   m_opusEncCtx->ch_layout.nb_channels, dst_nb_samples,
+	                                   m_opusEncCtx->sample_fmt, 0);
+
+	// Convert
+	int converted_count =
+	    swr_convert(m_swrCtx, converted_data, dst_nb_samples,
+	                (const uint8_t **)m_decodedFrame->data, m_decodedFrame->nb_samples);
+
+	// C. Write to FIFO
+	av_audio_fifo_write(m_audioFifo, (void **)converted_data, converted_count);
+
+	if (converted_data) {
+		av_freep(&converted_data[0]);
+		av_freep(&converted_data);
+	}
+
+	// D. Encode from FIFO
+	// Opus frame size is usually 960 samples (20ms at 48kHz)
+	while (av_audio_fifo_size(m_audioFifo) >= m_opusEncCtx->frame_size) {
+		// Pull data from FIFO
+		if (av_frame_make_writable(m_opusFrame) < 0) {
+			MS_LOG_WARN("whep:%s Opus frame not writable", _sessionId.c_str());
+			break;
+		}
+		av_audio_fifo_read(m_audioFifo, (void **)m_opusFrame->data, m_opusEncCtx->frame_size);
+
+		// Set PTS
+		m_opusFrame->pts = m_nextOpusPts;
+		m_nextOpusPts += m_opusFrame->nb_samples;
+		// Send to Encoder
+		if (avcodec_send_frame(m_opusEncCtx, m_opusFrame) == 0) {
+			AVPacket *out_pkt = av_packet_alloc();
+			while (avcodec_receive_packet(m_opusEncCtx, out_pkt) == 0) {
+				opusPkts.push_back(out_pkt);
+				out_pkt = av_packet_alloc();
+			}
+			av_packet_free(&out_pkt);
+		}
+	}
+
+	av_frame_unref(m_decodedFrame);
+}
+
+void MsRtcSink::ReleaseTranscoder() {
+	if (m_aacDecCtx) {
+		avcodec_free_context(&m_aacDecCtx);
+		m_aacDecCtx = nullptr;
+	}
+	if (m_opusEncCtx) {
+		avcodec_free_context(&m_opusEncCtx);
+		m_opusEncCtx = nullptr;
+	}
+	if (m_swrCtx) {
+		swr_free(&m_swrCtx);
+		m_swrCtx = nullptr;
+	}
+	if (m_decodedFrame) {
+		av_frame_free(&m_decodedFrame);
+		m_decodedFrame = nullptr;
+	}
+	if (m_opusFrame) {
+		av_frame_free(&m_opusFrame);
+		m_opusFrame = nullptr;
+	}
+
+	if (m_audioFifo) {
+		av_audio_fifo_free(m_audioFifo);
+		m_audioFifo = nullptr;
+	}
+}
+
+void MsRtcSink::ProcessPkt(AVPacket *pkt) {
 	int ret;
 	bool isVideo = pkt->stream_index == m_videoIdx;
 	AVFormatContext *fmtCtx = isVideo ? m_videoFmtCtx : m_audioFmtCtx;
@@ -450,15 +661,55 @@ void MsRtcSink::OnStreamPacket(AVPacket *pkt) {
 	// Drop non-key video frame at the beginning
 	if (isVideo && m_firstVideo) {
 		if (!(pkt->flags & AV_PKT_FLAG_KEY)) {
+			// MS_LOG_WARN("StreamID:%s, sinkID:%d drop non-key video pkt at the beginning "
+			//             "pts:%lld dts:%lld size:%d",
+			//             m_streamID.c_str(), m_sinkID, pkt->pts, pkt->dts, pkt->size);
 			return;
 		}
-	} else {
+	} else if (!isVideo && m_firstVideo) {
 		// buffer audio pkts
-		if (m_firstVideo) {
-			AVPacket *apkt = av_packet_clone(pkt);
-			m_queAudioPkts.push(apkt);
-			return;
+		AVPacket *apkt = av_packet_clone(pkt);
+		m_queAudioPkts.push(apkt);
+		return;
+	}
+
+	// Handle audio transcoding (AAC to Opus)
+	if (!isVideo && m_needTranscode) {
+		std::vector<AVPacket *> opusPkts;
+		this->TranscodeAAC(pkt, opusPkts);
+
+		for (auto opusPkt : opusPkts) {
+			opusPkt->stream_index = outIdx;
+			opusPkt->pos = -1;
+
+			if (m_firstAudio) {
+				m_firstAudio = false;
+				m_firstAudioPts = opusPkt->pts;
+				m_firstAudioDts = opusPkt->dts;
+			}
+
+			opusPkt->pts -= m_firstAudioPts;
+			if (opusPkt->dts != AV_NOPTS_VALUE && m_firstAudioDts != AV_NOPTS_VALUE) {
+				opusPkt->dts -= m_firstAudioDts;
+			}
+
+			ret = av_write_frame(fmtCtx, opusPkt);
+			if (ret < 0) {
+				char errbuf[AV_ERROR_MAX_STRING_SIZE] = {0};
+				av_strerror(ret, errbuf, sizeof(errbuf));
+				MS_LOG_ERROR("Error writing transcoded audio frame to RTC sink, ret:%d %s", ret,
+				             errbuf);
+			}
+
+			av_packet_free(&opusPkt);
 		}
+
+		pkt->pts = orig_pts;
+		pkt->dts = orig_dts;
+		pkt->pos = -1;
+		pkt->stream_index = inIdx;
+
+		return;
 	}
 
 	av_packet_rescale_ts(pkt, inSt->time_base, outSt->time_base);
@@ -504,18 +755,18 @@ void MsRtcSink::OnStreamPacket(AVPacket *pkt) {
 		MS_LOG_ERROR("Error writing frame to RTC sink, ret:%d %s", ret, errbuf);
 	}
 
-	while (m_queAudioPkts.size() && inIdx == m_videoIdx) {
+	while (m_queAudioPkts.size() && isVideo) {
 		AVPacket *apkt = m_queAudioPkts.front();
 		m_queAudioPkts.pop();
 		int64_t ori_ms = orig_pts * 1000L * inSt->time_base.num / inSt->time_base.den;
 		int64_t apkt_ms = apkt->pts * 1000L * m_audio->time_base.num / m_audio->time_base.den;
-		int64_t diff = abs(ori_ms - apkt_ms);
+		int64_t diff = apkt_ms - ori_ms;
 
-		if (diff < 131) { // allow max 131ms diff
+		if (diff > -131) { // allow max 131ms diff
 			// send pkt
-			this->OnStreamPacket(apkt);
+			this->ProcessPkt(apkt);
 		} else {
-			// drop pkt
+			// // drop pkt
 			MS_LOG_WARN("StreamID:%s, sinkID:%d drop buffered audio pkt, ori_ms:%lld "
 			            "apkt_ms:%lld diff:%lld",
 			            m_streamID.c_str(), m_sinkID, ori_ms, apkt_ms, diff);
