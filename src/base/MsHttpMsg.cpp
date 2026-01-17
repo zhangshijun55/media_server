@@ -78,6 +78,11 @@ void SendHttpRsp(MsSocket *sock, const string &rspBody) {
 	rsp.m_status = "200";
 	rsp.m_reason = "OK";
 	rsp.m_connection.SetValue("close");
+	rsp.m_allowOrigin.SetValue("*");
+	rsp.m_allowMethod.SetValue("GET, POST, OPTIONS, DELETE");
+	rsp.m_allowHeader.SetValue(
+	    "DNT,X-Mx-ReqToken,Keep-Alive,User-Agent,X-Requested-With,If-Modified-"
+	    "Since,Cache-Control,Content-Type,Authorization,Location");
 	rsp.m_contentType.SetValue("application/json; charset=UTF-8");
 	rsp.SetBody(rspBody.c_str(), rspBody.size());
 

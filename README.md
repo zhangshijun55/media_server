@@ -13,6 +13,7 @@ A  media server implementation supporting GB/T 28181, RTSP, WebRTC and HTTP stre
 - [Build Instructions](#build-instructions)
 - [Configuration](#configuration)
 - [Usage](#usage)
+- [Web Management Page](#web-management-page)
 - [API Usage](#api-usage)
   - [Get Device List](#get-device-list)
   - [Add RTSP Device](#add-rtsp-device)
@@ -113,6 +114,60 @@ cd output
 ```
 
 Ensure the configuration file and database are accessible as expected by the application.
+
+## Web Management Page
+
+The media server includes a web-based management interface located in the `web/index.html` file. This page provides a user-friendly interface for managing devices, files, GB28181 domains, and WebRTC sessions.
+
+### Accessing the Web Page
+
+1. Copy the `web/index.html` file to your web server or open it directly in a browser.
+2. Update the `API_BASE_URL` in the JavaScript section to point to your media server:
+   ```javascript
+   const API_BASE_URL = 'https://<server_ip>:<httpPort>';
+   ```
+
+### Features
+
+- **Device Management**
+  - View all devices with status, codec, and resolution information
+  - Add new RTSP or ONVIF devices
+  - Preview live streams using WebRTC (WHEP)
+  - Delete devices
+
+- **File Management**
+  - View uploaded media files with metadata (size, codec, duration, etc.)
+  - Upload new media files
+  - Preview files using HTTP-FLV streaming
+  - Delete files
+
+- **GB28181 Management**
+  - View GB domain list with device counts
+  - Sync device catalog from GB28181 platforms
+  - View GB server configuration
+  - Search and playback GB28181 recordings (with 1-hour time range limit)
+
+- **WebRTC Sessions**
+  - View active WebRTC sessions
+  - Preview streams using WHEP
+
+### Language Support
+
+The web page supports both English and Chinese languages. Click the **EN** or **中文** button in the sidebar to switch languages. Your preference is saved in the browser's local storage.
+
+### Screenshot
+
+```
++------------------+----------------------------------------+
+|  Media Server    |  Device List                    [+] [↻] |
+|  [EN] [中文]     |----------------------------------------|
+|                  |  Device ID | Name | Protocol | Status  |
+|  ▶ Device        |  --------- | ---- | -------- | ------  |
+|  📄 File         |  cam_001   | Cam1 | RTSP     | ON      |
+|  🏢 GB Domain    |  cam_002   | Cam2 | GB28181  | ON      |
+|  📡 WebRTC       |                                        |
++------------------+----------------------------------------+
+```
 
 ## API Usage
 

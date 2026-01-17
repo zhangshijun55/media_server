@@ -621,6 +621,15 @@ void MsRtcSink::ReleaseTranscoder() {
 		m_aacDecCtx = nullptr;
 	}
 	if (m_opusEncCtx) {
+		// Flush the opus encoder before closing
+		avcodec_send_frame(m_opusEncCtx, nullptr);
+		AVPacket *flush_pkt = av_packet_alloc();
+		while (flush_pkt && avcodec_receive_packet(m_opusEncCtx, flush_pkt) == 0) {
+			// Drop all remaining audio frames
+			av_packet_unref(flush_pkt);
+		}
+		av_packet_free(&flush_pkt);
+
 		avcodec_free_context(&m_opusEncCtx);
 		m_opusEncCtx = nullptr;
 	}
