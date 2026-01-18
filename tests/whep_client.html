@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WHEP Client Test</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            padding: 20px;
+        }
+
+        .controls {
+            margin-bottom: 20px;
+        }
+
+        video {
+            width: 640px;
+            height: 480px;
+            background: #000;
+            margin-top: 10px;
+        }
+
+        #log {
+            white-space: pre-wrap;
+            background: #f0f0f0;
+            padding: 10px;
+            border: 1px solid #ccc;
+            height: 200px;
+            overflow-y: scroll;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>WHEP Client Test</h1>
+
+    <div class="controls">
+        <label for="whepUrl">WHEP URL:</label>
+        <input type="text" id="whepUrl" value="https://192.168.3.211:26080/rtc/whep/" style="width: 300px;">
+        <input type="text" id="streamId" placeholder="Stream ID" style="width: 150px;">
+        <button id="startBtn">Start Playback</button>
+        <button id="stopBtn" disabled>Stop</button>
+    </div>
+
+    <div>
+        <video id="player" autoplay playsinline controls></video>
+    </div>
+
+    <div id="log"></div>
+
+    <script>
+        const whepUrlInput = document.getElementById('whepUrl');
+        const streamIdInput = document.getElementById('streamId');
+        const startBtn = document.getElementById('startBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const playerEl = document.getElementById('player');
+        const logEl = document.getElementById('log');
+
+        let pc = null;
+        let resourceUrl = null;
+
+        function log(msg) {
+            console.log(msg);
+            logEl.textContent += msg + '\n';
+            logEl.scrollTop = logEl.scrollHeight;
+        }
+
+        startBtn.onclick = async () => {
+            try {
+                startBtn.disabled = true;
+                const baseUrl = whepUrlInput.value;
+                const streamId = streamIdInput.value;
+
+                if (!streamId) throw new Error("Please enter a Stream ID");
+
+                const url = baseUrl + streamId;
+                log(`Connecting to WHEP endpoint: ${url}`);
+
+                log(`Creating PeerConnection...`);
+                pc = new RTCPeerConnection();
+
+                pc.onconnectionstatechange = () => log(`Connection State: ${pc.connectionState}`);
+                pc.oniceconnectionstatechange = () => log(`ICE Connection State: ${pc.iceConnectionState}`);
+
+                // Set up to receive tracks
+                pc.ontrack = (event) => {
+                    log(`Received track: ${event.track.kind}`);
+                    if (event.streams && event.streams[0]) {
+                        playerEl.srcObject = event.streams[0];
+                    } else {
+                        // Create a new stream if none provided
+                        let stream = playerEl.srcObject;
+                        if (!stream) {
+                            stream = new MediaStream();
+                            playerEl.srcObject = stream;
+                        }
+                        stream.addTrack(event.track);
+                    }
+                };
+
+                // Add transceivers for receiving video and audio
+                pc.addTransceiver('video', { direction: 'recvonly' });
+                pc.addTransceiver('audio', { direction: 'recvonly' });
+
+                log(`Creating Offer...`);
+                const offer = await pc.createOffer();
+                await pc.setLocalDescription(offer);
+
+                log(`Waiting for ICE gathering to complete...`);
+                await new Promise(resolve => {
+                    if (pc.iceGatheringState === 'complete') {
+                        resolve();
+                    } else {
+                        const checkState = () => {
+                            if (pc.iceGatheringState === 'complete') {
+                                pc.removeEventListener('icegatheringstatechange', checkState);
+                                resolve();
+                            }
+                        };
+                        pc.addEventListener('icegatheringstatechange', checkState);
+                    }
+                });
+
+                log(`Sending WHEP Offer to ${url}...`);
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/sdp',
+                        'Access-Control-Request-Private-Network': 'true'
+                    },
+                    body: pc.localDescription.sdp
+                });
+
+                if (!response.ok) {
+                    throw new Error(`WHEP Request failed: ${response.status} ${response.statusText}`);
+                }
+
+                resourceUrl = response.headers.get('Location');
+                log(`WHEP session created. Location: ${resourceUrl}`);
+
+                const answerSdp = await response.text();
+                log(`Received Answer SDP.`);
+                console.log('Answer SDP:', answerSdp);
+
+                await pc.setRemoteDescription({ type: 'answer', sdp: answerSdp });
+                log(`Remote description set. Playback should start soon.`);
+
+                stopBtn.disabled = false;
+
+            } catch (e) {
+                log(`Error: ${e.message}`);
+                console.error(e);
+                stop();
+            }
+        };
+
+        stopBtn.onclick = stop;
+
+        async function stop() {
+            if (resourceUrl) {
+                log(`Deleting WHEP session at ${resourceUrl}...`);
+                try {
+                    await fetch(resourceUrl, { method: 'DELETE' });
+                } catch (e) {
+                    log(`Error deleting session: ${e.message}`);
+                }
+                resourceUrl = null;
+            }
+
+            if (pc) {
+                pc.close();
+                pc = null;
+            }
+
+            playerEl.srcObject = null;
+            startBtn.disabled = false;
+            stopBtn.disabled = true;
+            log(`Stopped.`);
+        }
+    </script>
+</body>
+
+</html>

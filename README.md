@@ -117,12 +117,12 @@ Ensure the configuration file and database are accessible as expected by the app
 
 ## Web Management Page
 
-The media server includes a web-based management interface located in the `web/index.html` file. This page provides a user-friendly interface for managing devices, files, GB28181 domains, and WebRTC sessions.
+The media server includes a web-based management interface located in the `web` directory. This page provides a user-friendly interface for managing devices, files, GB28181 domains, and WebRTC sessions.
 
 ### Accessing the Web Page
 
-1. Copy the `web/index.html` file to your web server or open it directly in a browser.
-2. Update the `API_BASE_URL` in the JavaScript section to point to your media server:
+1. Copy the `web` directory to your web server or open `web/index.html` directly in a browser.
+2. Update the `API_BASE_URL` in `web/script.js` to point to your media server:
    ```javascript
    const API_BASE_URL = 'https://<server_ip>:<httpPort>';
    ```

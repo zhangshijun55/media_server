@@ -118,12 +118,12 @@ cd output
 
 ## Web 管理页面
 
-媒体服务器包含一个基于 Web 的管理界面，位于 `web/index.html` 文件中。该页面提供了一个用户友好的界面，用于管理设备、文件、GB28181 域和 WebRTC 会话。
+媒体服务器包含一个基于 Web 的管理界面，位于 `web` 目录中。该页面提供了一个用户友好的界面，用于管理设备、文件、GB28181 域和 WebRTC 会话。
 
 ### 访问 Web 页面
 
-1. 将 `web/index.html` 文件复制到您的 Web 服务器，或直接在浏览器中打开。
-2. 在 JavaScript 部分更新 `API_BASE_URL`，指向您的媒体服务器：
+1. 将 `web` 目录复制到您的 Web 服务器，或直接在浏览器中打开 `web/index.html`。
+2. 在 `web/script.js` 文件中更新 `API_BASE_URL`，指向您的媒体服务器：
    ```javascript
    const API_BASE_URL = 'https://<server_ip>:<httpPort>';
    ```

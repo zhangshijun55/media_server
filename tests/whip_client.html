@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WHIP Client Test</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            padding: 20px;
+        }
+
+        .controls {
+            margin-bottom: 20px;
+        }
+
+        video {
+            width: 640px;
+            height: 480px;
+            background: #000;
+            margin-top: 10px;
+        }
+
+        #log {
+            white-space: pre-wrap;
+            background: #f0f0f0;
+            padding: 10px;
+            border: 1px solid #ccc;
+            height: 200px;
+            overflow-y: scroll;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>WHIP Client Test</h1>
+
+    <div class="controls">
+        <label for="whipUrl">WHIP URL:</label>
+        <input type="text" id="whipUrl" value="https://192.168.3.211:26080/rtc/whip" style="width: 300px;">
+        <button id="startBtn">Start Publishing</button>
+        <button id="stopBtn" disabled>Stop</button>
+    </div>
+
+    <div>
+        <video id="preview" autoplay muted playsinline></video>
+    </div>
+
+    <div id="log"></div>
+
+    <script>
+        const whipUrlInput = document.getElementById('whipUrl');
+        const startBtn = document.getElementById('startBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const previewEl = document.getElementById('preview');
+        const logEl = document.getElementById('log');
+
+        let pc = null;
+        let stream = null;
+        let resourceUrl = null;
+
+        function log(msg) {
+            console.log(msg);
+            logEl.textContent += msg + '\n';
+            logEl.scrollTop = logEl.scrollHeight;
+        }
+
+        startBtn.onclick = async () => {
+            try {
+                startBtn.disabled = true;
+                const url = whipUrlInput.value;
+                if (!url) throw new Error("Please enter a WHIP URL");
+
+                log(`Requesting user media...`);
+                stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                previewEl.srcObject = stream;
+
+                log(`Creating PeerConnection...`);
+                pc = new RTCPeerConnection();
+
+                pc.onconnectionstatechange = () => log(`Connection State: ${pc.connectionState}`);
+                pc.oniceconnectionstatechange = () => log(`ICE Connection State: ${pc.iceConnectionState}`);
+
+                stream.getTracks().forEach(track => pc.addTrack(track, stream));
+
+                log(`Creating Offer...`);
+                const offer = await pc.createOffer();
+                await pc.setLocalDescription(offer);
+
+                log(`Waiting for ICE gathering to complete...`);
+                // Wait for ICE gathering to complete ensures we send a complete SDP in the initial request
+                await new Promise(resolve => {
+                    if (pc.iceGatheringState === 'complete') {
+                        resolve();
+                    } else {
+                        const checkState = () => {
+                            if (pc.iceGatheringState === 'complete') {
+                                pc.removeEventListener('icegatheringstatechange', checkState);
+                                resolve();
+                            }
+                        };
+                        pc.addEventListener('icegatheringstatechange', checkState);
+                    }
+                });
+
+                log(`Sending WHIP Offer to ${url}...`);
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/sdp',
+                        'Access-Control-Request-Private-Network': 'true'
+                    },
+                    body: pc.localDescription.sdp
+                });
+
+                if (!response.ok) {
+                    throw new Error(`WHIP Request failed: ${response.status} ${response.statusText}`);
+                }
+
+                resourceUrl = response.headers.get('Location');
+                log(`WHIP session created. Location: ${resourceUrl}`);
+
+                const answerSdp = await response.text();
+                log(`Received Answer SDP.`);
+
+                await pc.setRemoteDescription({ type: 'answer', sdp: answerSdp });
+                log(`Remote description set. Publishing started.`);
+
+                stopBtn.disabled = false;
+
+            } catch (e) {
+                log(`Error: ${e.message}`);
+                stop();
+            }
+        };
+
+        stopBtn.onclick = stop;
+
+        async function stop() {
+            if (resourceUrl) {
+                log(`Deleting WHIP session at ${resourceUrl}...`);
+                try {
+                    await fetch(resourceUrl, { method: 'DELETE' });
+                } catch (e) {
+                    log(`Error deleting session: ${e.message}`);
+                }
+                resourceUrl = null;
+            }
+
+            if (pc) {
+                pc.close();
+                pc = null;
+            }
+
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+                stream = null;
+            }
+
+            previewEl.srcObject = null;
+            startBtn.disabled = false;
+            stopBtn.disabled = true;
+            log(`Stopped.`);
+        }
+    </script>
+</body>
+
+</html>
