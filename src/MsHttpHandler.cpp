@@ -141,8 +141,12 @@ void MsHttpHandler::HandleRead(shared_ptr<MsEvent> evt) {
 			m_server->DelEvent(evt);
 			return;
 		}
-
-		m_server->HandleHttpReq(evt, msg, p2, cntLen);
+		// send 200 ok with OPTIONS
+		if (msg.m_method == "OPTIONS") {
+			SendHttpRsp(sock, "");
+		} else {
+			m_server->HandleHttpReq(evt, msg, p2, cntLen);
+		}
 
 		p2 += cntLen;
 		m_bufOff -= (p2 - oriP2);

@@ -1072,7 +1072,10 @@ async function playGbRecord(deviceId, startTime, endTime, type) {
                 mpegtsPlayer = mpegts.createPlayer({
                     type: 'flv',
                     url: flvUrl,
-                    isLive: true
+                    isLive: true,
+                    liveSync: true,
+                    liveSyncTargetLatency: 0.5,
+                    enableWorker: true
                 });
                 mpegtsPlayer.attachMediaElement(videoElement);
                 mpegtsPlayer.load();
@@ -1113,8 +1116,14 @@ async function previewDevice(deviceId, deviceName) {
         const response = await fetch(`${API_BASE_URL}/device/url?deviceId=${encodeURIComponent(deviceId)}`);
         const data = await response.json();
 
-        if (data.code === 0 && data.result && data.result.rtcUrl) {
-            const whepUrl = data.result.rtcUrl;
+        if (data.code === 0 && data.result && data.result.httpFlvUrl) {
+            const flvUrl = data.result.httpFlvUrl;
+
+            // Destroy existing player if any
+            if (mpegtsPlayer) {
+                mpegtsPlayer.destroy();
+                mpegtsPlayer = null;
+            }
 
             // Close existing peer connection if any
             if (whepPeerConnection) {
@@ -1122,8 +1131,23 @@ async function previewDevice(deviceId, deviceName) {
                 whepPeerConnection = null;
             }
 
-            // Create WHEP connection
-            await startWhepPlayer(whepUrl, videoElement);
+            // Check if mpegts.js is supported
+            if (mpegts.isSupported()) {
+                mpegtsPlayer = mpegts.createPlayer({
+                    type: 'flv',
+                    url: flvUrl,
+                    isLive: true,
+                    liveSync: true,
+                    liveSyncTargetLatency: 0.5,
+                    enableWorker: true
+                });
+                mpegtsPlayer.attachMediaElement(videoElement);
+                mpegtsPlayer.load();
+                mpegtsPlayer.play();
+            } else {
+                alert(t('browserNotSupported'));
+                closeVideoModal();
+            }
         } else {
             alert(t('failedToGetDeviceUrl') + ': ' + (data.msg || 'Unknown error'));
             closeVideoModal();
@@ -1521,7 +1545,10 @@ async function previewFile(fileId, fileName) {
                 mpegtsPlayer = mpegts.createPlayer({
                     type: 'flv',
                     url: flvUrl,
-                    isLive: true
+                    isLive: true,
+                    liveSync: true,
+                    liveSyncTargetLatency: 0.5,
+                    enableWorker: true
                 });
                 mpegtsPlayer.attachMediaElement(videoElement);
                 mpegtsPlayer.load();

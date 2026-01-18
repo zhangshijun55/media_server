@@ -131,7 +131,8 @@ The media server includes a web-based management interface located in the `web` 
 - **Device Management**
   - View all devices with status, codec, and resolution information
   - Add new RTSP or ONVIF devices
-  - Preview live streams using WebRTC (WHEP)
+  - Preview live streams using mpegts.js
+  - Preview live streams with PTZ control
   - Delete devices
 
 - **File Management**
