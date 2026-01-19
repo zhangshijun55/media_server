@@ -4,6 +4,8 @@
 [![Build Base](https://github.com/greenjim301-ux/media-server/actions/workflows/build-base.yml/badge.svg)](https://github.com/greenjim301-ux/media-server/actions/workflows/build-base.yml)
 [![Build with WebRTC](https://github.com/greenjim301-ux/media-server/actions/workflows/build-rtc.yml/badge.svg)](https://github.com/greenjim301-ux/media-server/actions/workflows/build-rtc.yml)
 
+中文请参考 [README_CN.md](README_CN.md)
+
 A  media server implementation supporting GB/T 28181, RTSP, WebRTC and HTTP streaming protocols.
 
 ## Table of Contents
