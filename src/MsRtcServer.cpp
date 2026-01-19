@@ -70,19 +70,25 @@ void MsRtcServer::HandleMsg(MsMsg &msg) {
 }
 
 void MsRtcServer::RtcProcess(shared_ptr<SHttpTransferMsg> rtcMsg) {
-	// if httpMsg.uri contains "whip" then whip process else return 404
-	if (rtcMsg->httpMsg.m_uri.find("whip") != string::npos) {
+	// Handle OPTIONS request
+	MsHttpMsg &msg = rtcMsg->httpMsg;
+	shared_ptr<MsSocket> &sock = rtcMsg->sock;
+
+	if (msg.m_method == "OPTIONS" || msg.m_method == "GET") {
+		MsHttpMsg rsp;
+		rsp.m_version = msg.m_version;
+		rsp.m_status = "204";
+		rsp.m_reason = "No Content";
+		SendHttpRspEx(sock.get(), rsp);
+	} else if (msg.m_uri.find("whip") != string::npos) {
 		return this->WhipProcess(rtcMsg);
 	}
 	// if httpMsg.uri contains "whep" then whep process
-	else if (rtcMsg->httpMsg.m_uri.find("whep") != string::npos) {
+	else if (msg.m_uri.find("whep") != string::npos) {
 		return this->WhepProcess(rtcMsg);
 	}
 	// if uri start with /rtc/session then rtc process
-	else if (rtcMsg->httpMsg.m_uri.find("/rtc/session") == 0) {
-		MsHttpMsg &msg = rtcMsg->httpMsg;
-		shared_ptr<MsSocket> &sock = rtcMsg->sock;
-
+	else if (msg.m_uri.find("/rtc/session") == 0) {
 		// if uri has /url, get the playback url
 		if (msg.m_uri.find("/url") != string::npos) {
 			string sessionId;
@@ -164,14 +170,7 @@ void MsRtcServer::WhipProcess(shared_ptr<SHttpTransferMsg> rtcMsg) {
 	shared_ptr<MsSocket> &sock = rtcMsg->sock;
 	string &sdp = rtcMsg->body;
 
-	// if httpMsg.method is OPTIONS or GET return 200 OK with allow headers
-	if (msg.m_method == "OPTIONS" || msg.m_method == "GET") {
-		MsHttpMsg rsp;
-		rsp.m_version = msg.m_version;
-		rsp.m_status = "204";
-		rsp.m_reason = "No Content";
-		SendHttpRspEx(sock.get(), rsp);
-	} else if (msg.m_method == "POST") {
+	if (msg.m_method == "POST") {
 		string sessionId = GenRandStr(16);
 		string version = msg.m_version;
 		string httpIp = MsConfig::Instance()->GetConfigStr("localBindIP");
@@ -444,15 +443,7 @@ void MsRtcServer::WhepProcess(shared_ptr<SHttpTransferMsg> rtcMsg) {
 	MsHttpMsg &msg = rtcMsg->httpMsg;
 	shared_ptr<MsSocket> &sock = rtcMsg->sock;
 	string &sdp = rtcMsg->body;
-
-	// Handle OPTIONS request
-	if (msg.m_method == "OPTIONS" || msg.m_method == "GET") {
-		MsHttpMsg rsp;
-		rsp.m_version = msg.m_version;
-		rsp.m_status = "204";
-		rsp.m_reason = "No Content";
-		SendHttpRspEx(sock.get(), rsp);
-	} else if (msg.m_method == "POST") {
+	if (msg.m_method == "POST") {
 		// Parse stream ID from URI: /whep/{streamId}
 		string streamId;
 		size_t pos = msg.m_uri.find("whep/");
