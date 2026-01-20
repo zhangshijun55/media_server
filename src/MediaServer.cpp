@@ -23,6 +23,13 @@ int main(int argc, char *argv[]) {
 	MsConfig *config = MsConfig::Instance();
 	config->LoadConfig();
 
+	for (int i = 1; i < argc; i++) {
+		if (string(argv[i]) == "-bind_ip" && i + 1 < argc) {
+			config->SetConfigStr("localBindIP", argv[i + 1]);
+			i++; // Skip the argument value
+		}
+	}
+
 	MsLog::Instance()->SetLevel(config->GetConfigInt("logLevel"));
 	MsLog::Instance()->Run();
 
