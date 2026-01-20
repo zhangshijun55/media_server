@@ -56,7 +56,7 @@ COPY --from=builder /usr/lib/x86_64-linux-gnu/libdatachannel* /usr/lib/x86_64-li
 
 # Copy application artifacts
 WORKDIR /app
-COPY --from=builder /app/output/* .
+COPY --from=builder /app/output .
 
 # Expose ports based on default config
 EXPOSE 26080 5080 26090
