@@ -1,5 +1,5 @@
 # Build stage
-FROM ubuntu:latest AS builder
+FROM ubuntu:24.04 AS builder
 
 ENV DEBIAN_FRONTEND=noninteractive
 
@@ -34,17 +34,17 @@ RUN cmake -B build -DCMAKE_BUILD_TYPE=Release -DENABLE_HTTPS=OFF -DENABLE_RTC=ON
     cmake --build build -j$(nproc)
 
 # Runtime stage
-FROM ubuntu:latest
+FROM ubuntu:24.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 
 # Install runtime dependencies
 RUN apt-get update && apt-get install -y \
     libssl3 \
-    libavcodec58 \
-    libavformat58 \
-    libavutil56 \
-    libswresample3 \
+    libavcodec60 \
+    libavformat60 \
+    libavutil58 \
+    libswresample4 \
     libsqlite3-0 \
     ca-certificates \
     net-tools \
