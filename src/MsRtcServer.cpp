@@ -74,7 +74,7 @@ void MsRtcServer::RtcProcess(shared_ptr<SHttpTransferMsg> rtcMsg) {
 	MsHttpMsg &msg = rtcMsg->httpMsg;
 	shared_ptr<MsSocket> &sock = rtcMsg->sock;
 
-	if ((msg.m_method == "OPTIONS" || msg.m_method == "GET") && msg.m_uri != "/rtc/session") {
+	if (msg.m_method == "OPTIONS") {
 		MsHttpMsg rsp;
 		rsp.m_version = msg.m_version;
 		rsp.m_status = "204";
@@ -422,6 +422,13 @@ void MsRtcServer::WhipProcess(shared_ptr<SHttpTransferMsg> rtcMsg) {
 		rsp.m_status = "200";
 		rsp.m_reason = "OK";
 		SendHttpRspEx(sock.get(), rsp);
+	} else if (msg.m_method == "GET") {
+		// return 204 for GET method
+		MsHttpMsg rsp;
+		rsp.m_version = msg.m_version;
+		rsp.m_status = "204";
+		rsp.m_reason = "No Content";
+		SendHttpRspEx(sock.get(), rsp);
 	} else {
 		MsHttpMsg rsp;
 		rsp.m_version = msg.m_version;
@@ -536,6 +543,13 @@ void MsRtcServer::WhepProcess(shared_ptr<SHttpTransferMsg> rtcMsg) {
 		rsp.m_version = msg.m_version;
 		rsp.m_status = "200";
 		rsp.m_reason = "OK";
+		SendHttpRspEx(sock.get(), rsp);
+	} else if (msg.m_method == "GET") {
+		// return 204 for GET method
+		MsHttpMsg rsp;
+		rsp.m_version = msg.m_version;
+		rsp.m_status = "204";
+		rsp.m_reason = "No Content";
 		SendHttpRspEx(sock.get(), rsp);
 	} else {
 		MsHttpMsg rsp;
