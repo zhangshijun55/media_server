@@ -12,6 +12,7 @@ A  media server implementation supporting GB/T 28181, RTSP, WebRTC and HTTP stre
 - [Features](#features)
 - [Dependencies](#dependencies)
 - [Build Instructions](#build-instructions)
+- [Docker Usage](#docker-usage)
 - [Configuration](#configuration)
 - [Usage](#usage)
 - [Web Management Page](#web-management-page)
@@ -80,6 +81,63 @@ The project requires the following dependencies:
    ```
 
 The executable `media_server` will be generated in the `output` directory.
+
+## Docker Usage
+
+You can also run the media server using Docker.
+
+### Pull Docker Image
+
+```bash
+docker pull ghcr.io/greenjim301-ux/media-server:main
+```
+
+### Build Docker Image
+
+```bash
+docker build -t media-server .
+```
+
+### Run Docker Container
+
+```bash
+docker run -d \
+  --network host \
+  -v $(pwd)/output/conf:/app/conf \
+  -v $(pwd)/output/log:/app/log \
+  -v $(pwd)/output/files:/app/files \
+  --name media-server \
+  media-server
+```
+
+You can also specify the server IP using `-bind_ip`:
+```bash
+docker run -d \
+  --network host \
+  -v $(pwd)/output/conf:/app/conf \
+  -v $(pwd)/output/log:/app/log \
+  -v $(pwd)/output/files:/app/files \
+  --name media-server \
+  media-server -bind_ip x.x.x.x
+```
+
+**Note:** Using `--network host` is recommended for handling RTP/UDP ports efficiently and avoiding NAT issues, especially for WebRTC and RTSP.
+
+If you prefer bridge mode, you need to map all necessary ports:
+
+```bash
+docker run -d \
+  -p 26080:26080 \
+  -p 26090:26090/tcp \
+  -p 26090:26090/udp \
+  -p 5080:5080/tcp \
+  -p 5080:5080/udp \
+  -v $(pwd)/output/conf:/app/conf \
+  -v $(pwd)/output/log:/app/log \
+  -v $(pwd)/output/files:/app/files \
+  --name media-server \
+  media-server
+```
 
 ## Configuration
 

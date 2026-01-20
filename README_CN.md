@@ -10,6 +10,7 @@
 - [功能特性](#功能特性)
 - [依赖项](#依赖项)
 - [构建指南](#构建指南)
+- [Docker 使用](#docker-使用)
 - [配置](#配置)
 - [使用方法](#使用方法)
 - [Web 管理页面](#web-管理页面)
@@ -77,6 +78,63 @@
    ```
 
 可执行文件 `media_server` 将生成在 `output` 目录中。
+
+## Docker 使用
+
+您也可以使用 Docker 运行媒体服务器。
+
+### 拉取 Docker 镜像
+
+```bash
+docker pull ghcr.io/greenjim301-ux/media-server:main
+```
+
+### 构建 Docker 镜像
+
+```bash
+docker build -t media-server .
+```
+
+### 运行 Docker 容器
+
+```bash
+docker run -d \
+  --network host \
+  -v $(pwd)/output/conf:/app/conf \
+  -v $(pwd)/output/log:/app/log \
+  -v $(pwd)/output/files:/app/files \
+  --name media-server \
+  media-server
+```
+
+您也可以使用 `-bind_ip` 参数指定服务器 IP：
+```bash
+docker run -d \
+  --network host \
+  -v $(pwd)/output/conf:/app/conf \
+  -v $(pwd)/output/log:/app/log \
+  -v $(pwd)/output/files:/app/files \
+  --name media-server \
+  media-server -bind_ip x.x.x.x
+```
+
+**注意:** 推荐使用 `--network host` 模式，以便更有效地处理 RTP/UDP 端口并避免 NAT 问题，特别是对于 WebRTC 和 RTSP.
+
+如果您更喜欢网桥模式，则需要映射所有必要的端口：
+
+```bash
+docker run -d \
+  -p 26080:26080 \
+  -p 26090:26090/tcp \
+  -p 26090:26090/udp \
+  -p 5080:5080/tcp \
+  -p 5080:5080/udp \
+  -v $(pwd)/output/conf:/app/conf \
+  -v $(pwd)/output/log:/app/log \
+  -v $(pwd)/output/files:/app/files \
+  --name media-server \
+  media-server
+```
 
 ## 配置
 
