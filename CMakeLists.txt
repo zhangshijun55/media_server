@@ -69,7 +69,7 @@ set(BASE_SOURCES
     src/base/MsSocket.cpp
     src/base/MsTimer.cpp
     src/base/MsRingBuffer.cpp
-    src/base/MsMd5.c
+    src/base/MsMd5.cpp
     src/base/MsSha1.cpp
     src/base/MsThreadPool.cpp
 )
