@@ -25,6 +25,11 @@ public:
 
 		m_bufOff += recv;
 		m_bufPtr[m_bufOff] = '\0';
+
+		this->ProcessBuffer(evt);
+	}
+
+	void ProcessBuffer(shared_ptr<MsEvent> evt) {
 		char *p2 = m_bufPtr.get();
 
 		while (m_bufOff > 0) {
@@ -96,72 +101,50 @@ public:
 
 	void HandleWrite(shared_ptr<MsEvent> evt) { m_iServer->OnWriteEvent(evt); }
 
-private:
-	shared_ptr<MsReactor> m_reactor;
-	shared_ptr<MsIRtspServer> m_iServer;
+public:
 	unique_ptr<char[]> m_bufPtr;
 	int m_bufSize;
 	int m_bufOff;
-};
-
-class MsRtspAcceptHandler : public MsEventHandler {
-public:
-	MsRtspAcceptHandler(shared_ptr<MsReactor> reactor) : m_reactor(reactor) {}
-
-	void HandleRead(shared_ptr<MsEvent> evt) {
-		MsSocket *sock = evt->GetSocket();
-		shared_ptr<MsSocket> s;
-
-		if (sock->Accept(s)) {
-			MS_LOG_WARN("rstp accept err:%d", MS_LAST_ERROR);
-			return;
-		}
-
-		shared_ptr<MsEventHandler> evtHandler =
-		    make_shared<MsRtspHandler>(m_reactor, dynamic_pointer_cast<MsIRtspServer>(m_reactor));
-		shared_ptr<MsEvent> msEvent = make_shared<MsEvent>(s, MS_FD_READ | MS_FD_CLOSE, evtHandler);
-		m_reactor->AddEvent(msEvent);
-	}
-
-	void HandleClose(shared_ptr<MsEvent> evt) {
-		m_reactor->DelEvent(evt);
-		m_reactor->PostExit();
-	}
 
 private:
 	shared_ptr<MsReactor> m_reactor;
+	shared_ptr<MsIRtspServer> m_iServer;
 };
 
 void MsRtspServer::Run() {
 	this->RegistToManager();
 
-	MsConfig *config = MsConfig::Instance();
-
-	string ip = config->GetConfigStr("rtspIP");
-	int port = config->GetConfigInt("rtspPort");
-
-	MsInetAddr bindAddr(AF_INET, ip, port);
-	shared_ptr<MsSocket> sock = make_shared<MsSocket>(AF_INET, SOCK_STREAM, 0);
-
-	if (0 != sock->Bind(bindAddr)) {
-		MS_LOG_ERROR("rtsp bind %s:%d err:%d", ip.c_str(), port, MS_LAST_ERROR);
-		return;
-	}
-
-	if (0 != sock->Listen()) {
-		MS_LOG_ERROR("rtsp listen %s:%d err:%d", ip.c_str(), port, MS_LAST_ERROR);
-		return;
-	}
-
-	MS_LOG_INFO("rtsp listen:%s:%d", ip.c_str(), port);
-
-	shared_ptr<MsEventHandler> evtHandler = make_shared<MsRtspAcceptHandler>(shared_from_this());
-	shared_ptr<MsEvent> evt = make_shared<MsEvent>(sock, MS_FD_ACCEPT, evtHandler);
-
-	this->AddEvent(evt);
-
 	std::thread worker(&MsReactor::Wait, shared_from_this());
 	worker.detach();
+}
+
+void MsRtspServer::HandleMsg(MsMsg &msg) {
+	switch (msg.m_msgID) {
+	case MS_SOCK_TRANSFER_MSG: {
+		auto rtspMsg = std::any_cast<shared_ptr<SSockTransferMsg>>(msg.m_any);
+		// Process rtspMsg as needed
+		shared_ptr<MsRtspHandler> handler =
+		    make_shared<MsRtspHandler>(dynamic_pointer_cast<MsRtspServer>(shared_from_this()),
+		                               dynamic_pointer_cast<MsIRtspServer>(shared_from_this()));
+		shared_ptr<MsEvent> event =
+		    make_shared<MsEvent>(rtspMsg->sock, MS_FD_READ | MS_FD_CLOSE, handler);
+		this->AddEvent(event);
+
+		// copy data to handler buffer and process
+		if (rtspMsg->data.size() > handler->m_bufSize) {
+			handler->m_bufPtr = make_unique<char[]>(rtspMsg->data.size());
+			handler->m_bufSize = rtspMsg->data.size();
+		}
+
+		memcpy(handler->m_bufPtr.get(), rtspMsg->data.data(), rtspMsg->data.size());
+		handler->m_bufOff = rtspMsg->data.size();
+		handler->ProcessBuffer(event);
+
+	} break;
+	default:
+		MsReactor::HandleMsg(msg);
+		break;
+	}
 }
 
 int MsRtspServer::HandleOptions(MsRtspMsg &msg, shared_ptr<MsEvent> evt) {

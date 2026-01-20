@@ -10,8 +10,6 @@
     "queryRecordType": "all",
     "rtcPort": 26090,
     "rtpTransport": 2,
-    "rtspIP": "0.0.0.0",
-    "rtspPort": 26554,
     "sslCertFile": "conf/cert.pem",
     "sslKeyFile": "conf/key.pem"
 }

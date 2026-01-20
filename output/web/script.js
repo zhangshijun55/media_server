@@ -1,5 +1,5 @@
 // API Base URL
-const API_BASE_URL = 'https://192.168.3.211:26080';
+const API_BASE_URL = '';
 
 // Current language
 let currentLang = localStorage.getItem('lang') || 'en';

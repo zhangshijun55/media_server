@@ -31,6 +31,8 @@ enum MS_MSG_ID {
 	MS_RTC_PEER_CLOSED,
 	MS_RTC_DEL_SOCK,
 	MS_WHEP_PEER_CLOSED,
+	MS_SOCK_TRANSFER_MSG,
+	MS_JT_SOCKET_CLOSE,
 };
 
 enum MS_SERVICE_TYPE {
@@ -41,6 +43,7 @@ enum MS_SERVICE_TYPE {
 	MS_HTTP_STREAM,
 	MS_RTSP_SERVER,
 	MS_RTC_SERVER,
+	MS_JT_SERVER,
 };
 
 enum TRASNSPORT { EN_UDP = 0, EN_TCP_ACTIVE, EN_TCP_PASSIVE };
@@ -77,7 +80,6 @@ struct SMediaNode {
 	int node_id;
 	int idle;
 	int m_lastUsed;
-	int rtspPort;
 	int httpPort;
 	string httpMediaIP;
 	string nodeIp;
@@ -95,6 +97,11 @@ struct SHttpTransferMsg {
 	MsHttpMsg httpMsg;
 	string body;
 	shared_ptr<MsSocket> sock;
+};
+
+struct SSockTransferMsg {
+	shared_ptr<MsSocket> sock;
+	vector<uint8_t> data;
 };
 
 #endif // MS_MSG_DEF_H

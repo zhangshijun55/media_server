@@ -122,11 +122,7 @@ The media server includes a web-based management interface located in the `web` 
 
 ### Accessing the Web Page
 
-1. Copy the `web` directory to your web server or open `web/index.html` directly in a browser.
-2. Update the `API_BASE_URL` in `web/script.js` to point to your media server:
-   ```javascript
-   const API_BASE_URL = 'https://<server_ip>:<httpPort>';
-   ```
+Open `http://<server_ip>:<httpPort>` in your browser.
 
 ### Features
 

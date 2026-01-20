@@ -45,6 +45,7 @@ public:
 	using MsReactor::MsReactor;
 
 	void Run() override;
+	void HandleMsg(MsMsg &msg) override;
 
 	int HandleOptions(MsRtspMsg &msg, shared_ptr<MsEvent> evt) override;
 	int HandleDescribe(MsRtspMsg &msg, shared_ptr<MsEvent> evt) override;

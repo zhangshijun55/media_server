@@ -510,7 +510,7 @@ void MsHttpServer::FileUrl(shared_ptr<MsEvent> evt, MsHttpMsg &msg, char *body, 
 
 	char bb[512];
 	string rid = GenRandStr(16);
-	sprintf(bb, "rtsp://%s:%d/vod/%s/%s", ip.c_str(), mn->rtspPort, rid.c_str(), filename.c_str());
+	sprintf(bb, "rtsp://%s:%d/vod/%s/%s", ip.c_str(), mn->httpPort, rid.c_str(), filename.c_str());
 	r["rtspUrl"] = bb;
 
 	sprintf(bb, "%s://%s:%d/vod/%s/ts/%s", protocol.c_str(), ip.c_str(), mn->httpPort, rid.c_str(),
@@ -603,7 +603,6 @@ void MsHttpServer::OnNodeTimer() {
 		mn = it->second;
 	}
 
-	mn->rtspPort = config->GetConfigInt("rtspPort");
 	mn->httpPort = config->GetConfigInt("httpPort");
 	mn->httpMediaIP = config->GetConfigStr("httpMediaIP");
 	mn->nodeIp = config->GetConfigStr("localBindIP");
@@ -850,6 +849,56 @@ void MsHttpServer::HandleHttpReq(shared_ptr<MsEvent> evt, MsHttpMsg &msg, char *
 		auto func = it->second;
 		(this->*func)(evt, msg, body, len);
 	} else {
+		// serve static file in ./web directory
+		string filePath = "./web" + uri;
+		if (uri == "/") {
+			filePath += "index.html";
+		}
+
+		std::ifstream ifs(filePath, std::ios::in | std::ios::binary | std::ios::ate);
+		if (ifs.is_open()) {
+			auto fileSize = ifs.tellg();
+			ifs.seekg(0, std::ios::beg);
+			std::vector<char> fileContent(fileSize);
+			if (ifs.read(fileContent.data(), fileSize)) {
+				MsHttpMsg rsp;
+				rsp.m_version = msg.m_version;
+				rsp.m_status = "200";
+				rsp.m_reason = "OK";
+				rsp.m_connection.SetValue("close");
+
+				string ext;
+				size_t dotPos = filePath.find_last_of(".");
+				if (dotPos != string::npos) {
+					ext = filePath.substr(dotPos + 1);
+				}
+
+				const char *mime = "application/octet-stream";
+				if (ext == "html")
+					mime = "text/html";
+				else if (ext == "css")
+					mime = "text/css";
+				else if (ext == "js")
+					mime = "application/javascript";
+				else if (ext == "json")
+					mime = "application/json";
+				else if (ext == "png")
+					mime = "image/png";
+				else if (ext == "jpg" || ext == "jpeg")
+					mime = "image/jpeg";
+				else if (ext == "ico")
+					mime = "image/x-icon";
+
+				rsp.m_contentType.SetValue(mime);
+				rsp.m_contentLength.SetIntVal(fileSize);
+				rsp.SetBody(fileContent.data(), fileSize);
+
+				SendHttpRsp(evt->GetSocket(), rsp);
+				// this->DelEvent(evt);
+				return;
+			}
+		}
+
 		MS_LOG_WARN("url:%s not found", msg.m_uri.c_str());
 		MsHttpMsg rsp;
 		rsp.m_version = msg.m_version;
@@ -986,7 +1035,7 @@ void MsHttpServer::GetLiveUrl(shared_ptr<MsEvent> evt, MsHttpMsg &msg, char *bod
 	string protocol = "http";
 #endif
 
-	sprintf(bb, "rtsp://%s:%d/live/%s", ip.c_str(), mn->rtspPort, deviceId.c_str());
+	sprintf(bb, "rtsp://%s:%d/live/%s", ip.c_str(), mn->httpPort, deviceId.c_str());
 	r["rtspUrl"] = bb;
 
 	sprintf(bb, "%s://%s:%d/live/%s.ts", protocol.c_str(), ip.c_str(), mn->httpPort,
@@ -1064,7 +1113,7 @@ void MsHttpServer::GetPlaybackUrl(shared_ptr<MsEvent> evt, MsHttpMsg &msg, char 
 #endif
 
 		json r;
-		sprintf(bb, "rtsp://%s:%d/gbvod/%s/%s", ip.c_str(), mn->rtspPort, rid.c_str(),
+		sprintf(bb, "rtsp://%s:%d/gbvod/%s/%s", ip.c_str(), mn->httpPort, rid.c_str(),
 		        keyId.c_str());
 		r["rtspUrl"] = bb;
 
@@ -1129,7 +1178,6 @@ void MsHttpServer::GetMediaNode(shared_ptr<MsEvent> evt, MsHttpMsg &msg, char *b
 		json nd;
 		nd["nodeIP"] = nn.second->nodeIp;
 		nd["httpPort"] = nn.second->httpPort;
-		nd["rtspPort"] = nn.second->rtspPort;
 		nd["httpMediaIP"] = nn.second->httpMediaIP;
 		j["result"].emplace_back(nd);
 	}

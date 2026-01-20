@@ -31,6 +31,7 @@ public:
 	void HandleClose(shared_ptr<MsEvent> evt);
 
 private:
+	bool m_firstRecv = true;
 	shared_ptr<MsIHttpServer> m_server;
 
 	unique_ptr<char[]> m_bufPtr;

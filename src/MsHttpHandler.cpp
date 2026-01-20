@@ -47,6 +47,45 @@ void MsHttpHandler::HandleRead(shared_ptr<MsEvent> evt) {
 	m_bufOff += recv;
 	m_bufPtr[m_bufOff] = '\0';
 
+	if (m_firstRecv) {
+		m_firstRecv = false;
+		char *p = strstr(m_bufPtr.get(), "RTSP/1.0");
+		if (p != nullptr) {
+			MsMsg msg;
+			MS_LOG_INFO("rtsp recv rtsp data, transfer to rtsp server");
+			shared_ptr<SSockTransferMsg> rtspMsg = make_shared<SSockTransferMsg>();
+			rtspMsg->sock = evt->GetSharedSocket();
+			rtspMsg->data.insert(rtspMsg->data.end(), m_bufPtr.get(), m_bufPtr.get() + recv);
+
+			msg.m_msgID = MS_SOCK_TRANSFER_MSG;
+			msg.m_any = rtspMsg;
+			msg.m_dstType = MS_RTSP_SERVER;
+			msg.m_dstID = 1;
+			m_server->PostMsg(msg);
+
+			m_server->DelEvent(evt);
+			return;
+		}
+
+		// if (m_bufPtr[0] == 0x7e) {
+		// 	// transfer to jt server
+		// 	MS_LOG_INFO("rtsp recv jt808 data, transfer to jt server");
+		// 	shared_ptr<SSockTransferMsg> jtMsg = make_shared<SSockTransferMsg>();
+		// 	jtMsg->sock = evt->GetSharedSocket();
+		// 	jtMsg->data.insert(jtMsg->data.end(), m_bufPtr.get(), m_bufPtr.get() + recv);
+
+		// 	MsMsg msg;
+		// 	msg.m_msgID = MS_SOCK_TRANSFER_MSG;
+		// 	msg.m_any = jtMsg;
+		// 	msg.m_dstType = MS_JT_SERVER;
+		// 	msg.m_dstID = 1;
+		// 	m_server->PostMsg(msg);
+
+		// 	m_server->DelEvent(evt);
+		// 	return;
+		// }
+	}
+
 	char *p2 = m_bufPtr.get();
 
 	while (m_bufOff) {

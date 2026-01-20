@@ -121,11 +121,7 @@ cd output
 
 ### 访问 Web 页面
 
-1. 将 `web` 目录复制到您的 Web 服务器，或直接在浏览器中打开 `web/index.html`。
-2. 在 `web/script.js` 文件中更新 `API_BASE_URL`，指向您的媒体服务器：
-   ```javascript
-   const API_BASE_URL = 'https://<server_ip>:<httpPort>';
-   ```
+在浏览器中打开 `http://<server_ip>:<httpPort>`。
 
 ### 功能
 

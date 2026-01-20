@@ -74,7 +74,7 @@ void MsRtcServer::RtcProcess(shared_ptr<SHttpTransferMsg> rtcMsg) {
 	MsHttpMsg &msg = rtcMsg->httpMsg;
 	shared_ptr<MsSocket> &sock = rtcMsg->sock;
 
-	if (msg.m_method == "OPTIONS" || msg.m_method == "GET") {
+	if ((msg.m_method == "OPTIONS" || msg.m_method == "GET") && msg.m_uri != "/rtc/session") {
 		MsHttpMsg rsp;
 		rsp.m_version = msg.m_version;
 		rsp.m_status = "204";
@@ -129,8 +129,7 @@ void MsRtcServer::RtcProcess(shared_ptr<SHttpTransferMsg> rtcMsg) {
 			        sessionId.c_str());
 			j["rtcUrl"] = bb;
 
-			sprintf(bb, "rtsp://%s:%d/live/%s", httpIp.c_str(),
-			        MsConfig::Instance()->GetConfigInt("rtspPort"), sessionId.c_str());
+			sprintf(bb, "rtsp://%s:%d/live/%s", httpIp.c_str(), httpPort, sessionId.c_str());
 			j["rtspUrl"] = bb;
 
 			json rsp;
