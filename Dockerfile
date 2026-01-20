@@ -59,7 +59,11 @@ WORKDIR /app
 COPY --from=builder /app/output .
 
 # Expose ports based on default config
-EXPOSE 26080 5080 26090
+EXPOSE 26080/tcp
+EXPOSE 26090/tcp
+EXPOSE 26090/udp
+EXPOSE 5080/tcp
+EXPOSE 5080/udp
 
 # Define volumes for persistent data
 VOLUME ["/app/conf", "/app/log", "/app/files"]
