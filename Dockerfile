@@ -52,8 +52,7 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy LibDataChannel libraries from builder
-COPY --from=builder /usr/lib/libdatachannel* /usr/lib/
-COPY --from=builder /usr/lib/libjuice* /usr/lib/
+COPY --from=builder /usr/lib/x86_64-linux-gnu/libdatachannel* /usr/lib/x86_64-linux-gnu/
 
 # Copy application artifacts
 WORKDIR /app
