@@ -13,6 +13,7 @@ extern "C" {
 }
 
 #if ENABLE_HTTPS
+#include "MsPortAllocator.h"
 #include "MsSslSock.h"
 #endif
 
