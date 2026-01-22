@@ -1,7 +1,5 @@
 #include "MsResManager.h"
 #include "MsSourceFactory.h"
-#include <algorithm>
-#include <thread>
 
 // Static member initialization
 std::mutex MsResManager::m_instanceMutex;

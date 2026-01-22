@@ -2,8 +2,6 @@
 #define MS_HTTP_STREAM_H
 #include "MsMsgDef.h"
 #include "MsReactor.h"
-#include <string>
-#include <vector>
 
 class MsHttpStream : public MsReactor {
 public:

@@ -1,7 +1,6 @@
 #ifndef MS_FILE_SOURCE_H
 #define MS_FILE_SOURCE_H
 #include "MsMediaSource.h"
-#include "MsMsgDef.h"
 
 class MsFileSource : public MsMediaSource, public std::enable_shared_from_this<MsFileSource> {
 public:

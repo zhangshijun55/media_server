@@ -4,7 +4,6 @@
 #include "MsDevMgr.h"
 #include "MsHttpHandler.h"
 #include "MsLog.h"
-#include "MsPortAllocator.h"
 #include "MsThreadPool.h"
 #include <fstream>
 #include <thread>
@@ -135,7 +134,7 @@ void MsHttpServer::QueryPreset(shared_ptr<MsEvent> evt, MsHttpMsg &msg, char *bo
 		MsMsg qr;
 		qr.m_msgID = MS_QUERY_PRESET;
 		qr.m_strVal = devId;
-		qr.m_sessinID = ++m_seqID;
+		qr.m_sessionID = ++m_seqID;
 		qr.m_dstType = MS_GB_SERVER;
 		qr.m_dstID = 1;
 		qr.m_any = prom;
@@ -556,7 +555,7 @@ void MsHttpServer::QueryRecord(shared_ptr<MsEvent> evt, MsHttpMsg &msg, char *bo
 		qr.m_strVal.assign(body, len);
 		qr.m_dstType = MS_GB_SERVER;
 		qr.m_dstID = 1;
-		qr.m_sessinID = ++m_seqID;
+		qr.m_sessionID = ++m_seqID;
 
 		shared_ptr<promise<string>> prom = make_shared<promise<string>>();
 		qr.m_any = prom;
@@ -675,7 +674,7 @@ void MsHttpServer::AddDevice(shared_ptr<MsEvent> evt, MsHttpMsg &msg, char *body
 				MsMsg xm;
 				xm.m_msgID = MS_ONVIF_PROBE;
 				xm.m_strVal = dev->m_deviceID;
-				xm.m_sessinID = ++m_seqID;
+				xm.m_sessionID = ++m_seqID;
 				this->EnqueMsg(xm);
 				m_evts.emplace(m_seqID, evt);
 				return;
@@ -754,7 +753,7 @@ void MsHttpServer::HandleMsg(MsMsg &msg) {
 		break;
 
 	case MS_ONVIF_PROBE:
-		this->ProbeOnvif(msg.m_strVal, msg.m_sessinID);
+		this->ProbeOnvif(msg.m_strVal, msg.m_sessionID);
 		break;
 
 	case MS_ONVIF_PROBE_TIMEOUT: {
@@ -1086,7 +1085,7 @@ void MsHttpServer::GetPlaybackUrl(shared_ptr<MsEvent> evt, MsHttpMsg &msg, char 
 		char bb[512];
 		string rid = GenRandStr(16);
 
-		sprintf(bb, "%s-%lld-%lld-%d", devID.c_str(), nSt, nEt, nType);
+		sprintf(bb, "%s-%ld-%ld-%d", devID.c_str(), nSt, nEt, nType);
 		string keyId = bb;
 		string emptyIP;
 
@@ -1155,7 +1154,7 @@ void MsHttpServer::GetDevList(shared_ptr<MsEvent> evt, MsHttpMsg &msg, char *bod
 void MsHttpServer::GetRegistDomain(shared_ptr<MsEvent> evt, MsHttpMsg &msg, char *body, int len) {
 	// send MsMsg to gb server to get regist domain
 	MsMsg qr;
-	qr.m_sessinID = ++m_seqID;
+	qr.m_sessionID = ++m_seqID;
 	qr.m_msgID = MS_GET_REGIST_DOMAIN;
 	qr.m_dstType = MS_GB_SERVER;
 	qr.m_dstID = 1;

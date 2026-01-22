@@ -1,6 +1,5 @@
 #include "MsHttpMsg.h"
 #include "MsLog.h"
-#include "MsOsConfig.h"
 #include "MsSocket.h"
 
 MsHttpMsg::MsHttpMsg()

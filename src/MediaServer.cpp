@@ -5,12 +5,13 @@
 #include "MsGbServer.h"
 #include "MsHttpServer.h"
 #include "MsHttpStream.h"
+#include "MsJtServer.h"
 #include "MsLog.h"
 #include "MsMsgDef.h"
-#include "MsOsConfig.h"
 #include "MsRtspSink.h"
 #include "MsThreadPool.h"
 #include "MsTimer.h"
+#include <signal.h>
 
 #if ENABLE_RTC
 #include "MsRtcServer.h"
@@ -56,6 +57,9 @@ int main(int argc, char *argv[]) {
 
 	shared_ptr<MsHttpStream> hs = make_shared<MsHttpStream>(MS_HTTP_STREAM, 1);
 	hs->Run();
+
+	shared_ptr<MsJtServer> jt = make_shared<MsJtServer>(MS_JT_SERVER, 1);
+	jt->Run();
 
 #if ENABLE_RTC
 	shared_ptr<MsRtcServer> rtcServer = make_shared<MsRtcServer>(MS_RTC_SERVER, 1);

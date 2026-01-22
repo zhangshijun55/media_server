@@ -3,6 +3,7 @@
 #include "MsHttpMsg.h"
 #include <stdint.h>
 #include <string>
+#include <memory>
 
 using namespace std;
 
@@ -33,6 +34,11 @@ enum MS_MSG_ID {
 	MS_WHEP_PEER_CLOSED,
 	MS_SOCK_TRANSFER_MSG,
 	MS_JT_SOCKET_CLOSE,
+	MS_JT_START_STREAM,
+	MS_JT_STOP_STREAM,
+	MS_JT_REQ_TIMEOUT,
+	MS_JT_HTTP_MSG,
+	MS_JT_GET_STREAM_INFO,
 };
 
 enum MS_SERVICE_TYPE {
@@ -44,6 +50,7 @@ enum MS_SERVICE_TYPE {
 	MS_RTSP_SERVER,
 	MS_RTC_SERVER,
 	MS_JT_SERVER,
+	MS_JT_SOURCE,
 };
 
 enum TRASNSPORT { EN_UDP = 0, EN_TCP_ACTIVE, EN_TCP_PASSIVE };
@@ -69,6 +76,16 @@ struct SData {
 	    : m_uBuf(std::move(other.m_uBuf)), m_len(other.m_len), m_capacity(other.m_capacity) {
 		other.m_len = 0;
 		other.m_capacity = 0;
+	}
+	SData &operator=(SData &&other) {
+		if (this != &other) {
+			m_uBuf = std::move(other.m_uBuf);
+			m_len = other.m_len;
+			m_capacity = other.m_capacity;
+			other.m_len = 0;
+			other.m_capacity = 0;
+		}
+		return *this;
 	}
 
 	unique_ptr<uint8_t[]> m_uBuf;
@@ -102,6 +119,43 @@ struct SHttpTransferMsg {
 struct SSockTransferMsg {
 	shared_ptr<MsSocket> sock;
 	vector<uint8_t> data;
+};
+
+struct SJtStreamInfo {
+	// AV attributes from 0x1003
+	uint8_t m_audioCodec = 0;
+	uint8_t m_audioChannels = 0;
+	uint8_t m_audioSampleRate = 0;
+	uint8_t m_audioBits = 0;
+	uint16_t m_audioFrameLen = 0;
+	uint8_t m_audioOutput = 0;
+	uint8_t m_videoCodec = 0;
+	uint8_t m_maxAudioChannels = 0;
+	uint8_t m_maxVideoChannels = 0;
+};
+
+struct SJtStartStreamReq {
+	string m_terminalPhone;
+	string m_ip;
+	uint16_t m_tcpPort = 0;
+	uint16_t m_udpPort = 0;
+	uint8_t m_channel = 1;    // default channel 1-main driver
+	uint8_t m_dataType = 0;   // default video and audio
+	uint8_t m_streamType = 0; // default main stream
+};
+
+struct SJtChannelItem {
+	uint8_t m_phyChanId;
+	uint8_t m_logicChanId;
+	uint8_t m_chanType; // 0-av, 1-audio, 2-video
+	uint8_t m_ptz;      // 0-no, 1-yes
+};
+
+struct SJtChannelInfo {
+	uint8_t m_avChannelTotal;
+	uint8_t m_audioChannelTotal;
+	uint8_t m_videoChannelTotal;
+	std::vector<SJtChannelItem> m_channels;
 };
 
 #endif // MS_MSG_DEF_H

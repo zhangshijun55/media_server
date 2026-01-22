@@ -23,7 +23,7 @@ public:
 	int WriteBuffer(const uint8_t *buf, int buf_size);
 
 private:
-	void ReleaseResources();
+	void SinkReleaseRes();
 	void PassiveClose();
 	void SinkActiveClose();
 	void clear_que();

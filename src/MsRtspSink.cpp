@@ -1,8 +1,7 @@
 #include "MsRtspSink.h"
-#include "MsConfig.h"
 #include "MsEvent.h"
 #include "MsLog.h"
-#include "MsSourceFactory.h"
+#include "MsResManager.h"
 #include <thread>
 
 class MsRtspHandler : public MsEventHandler {
@@ -565,12 +564,12 @@ void MsRtspSink::OnStreamInfo(AVStream *video, int videoIdx, AVStream *audio, in
 err:
 	m_error = true;
 	this->DetachSourceNoLock();
-	this->ReleaseResources();
+	this->SinkReleaseRes();
 }
 
 void MsRtspSink::OnSourceClose() {
 	m_error = true;
-	this->ReleaseResources();
+	this->SinkReleaseRes();
 }
 
 void MsRtspSink::OnStreamPacket(AVPacket *pkt) {
@@ -668,8 +667,8 @@ void MsRtspSink::OnStreamPacket(AVPacket *pkt) {
 			this->OnStreamPacket(apkt);
 		} else {
 			// drop pkt
-			MS_LOG_WARN("StreamID:%s, sinkID:%d drop buffered audio pkt, ori_ms:%lld "
-			            "apkt_ms:%lld diff:%lld",
+			MS_LOG_WARN("StreamID:%s, sinkID:%d drop buffered audio pkt, ori_ms:%ld "
+			            "apkt_ms:%ld diff:%ld",
 			            m_streamID.c_str(), m_sinkID, ori_ms, apkt_ms, diff);
 		}
 		av_packet_free(&apkt);
@@ -685,7 +684,7 @@ void MsRtspSink::SinkActiveClose() {
 	m_error = true;
 
 	this->DetachSource();
-	this->ReleaseResources();
+	this->SinkReleaseRes();
 }
 
 void MsRtspSink::OnWriteEvent(shared_ptr<MsEvent> evt) {
@@ -829,7 +828,7 @@ int MsRtspSink::WriteBuffer(const uint8_t *buf, int buf_size, int channel) {
 	}
 }
 
-void MsRtspSink::ReleaseResources() {
+void MsRtspSink::SinkReleaseRes() {
 	if (m_evt && m_reactor) {
 		m_reactor->DelEvent(m_evt);
 		m_evt = nullptr;

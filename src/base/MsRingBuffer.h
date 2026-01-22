@@ -1,6 +1,5 @@
 #ifndef MS_RING_BUFFER_H
 #define MS_RING_BUFFER_H
-#include <algorithm>
 #include <cstring>
 #include <vector>
 

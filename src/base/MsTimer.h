@@ -2,12 +2,10 @@
 #define MS_TIMER_H
 
 #include "MsMsg.h"
-#include "MsOsConfig.h"
 #include "MsReactor.h"
 #include <condition_variable>
 #include <memory>
 #include <mutex>
-#include <string>
 
 class MsTimer {
 public:

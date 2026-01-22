@@ -1,10 +1,9 @@
 #include "MsHttpHandler.h"
 #include "MsCommon.h"
 #include "MsEvent.h"
-#include "MsHttpServer.h"
 #include "MsLog.h"
+#include "MsMsgDef.h"
 #include "nlohmann/json.hpp"
-#include <map>
 #include <string.h>
 
 using json = nlohmann::json;
@@ -67,23 +66,23 @@ void MsHttpHandler::HandleRead(shared_ptr<MsEvent> evt) {
 			return;
 		}
 
-		// if (m_bufPtr[0] == 0x7e) {
-		// 	// transfer to jt server
-		// 	MS_LOG_INFO("rtsp recv jt808 data, transfer to jt server");
-		// 	shared_ptr<SSockTransferMsg> jtMsg = make_shared<SSockTransferMsg>();
-		// 	jtMsg->sock = evt->GetSharedSocket();
-		// 	jtMsg->data.insert(jtMsg->data.end(), m_bufPtr.get(), m_bufPtr.get() + recv);
+		if (m_bufPtr[0] == 0x7e) {
+			// transfer to jt server
+			MS_LOG_INFO("rtsp recv jt808 data, transfer to jt server");
+			shared_ptr<SSockTransferMsg> jtMsg = make_shared<SSockTransferMsg>();
+			jtMsg->sock = evt->GetSharedSocket();
+			jtMsg->data.insert(jtMsg->data.end(), m_bufPtr.get(), m_bufPtr.get() + recv);
 
-		// 	MsMsg msg;
-		// 	msg.m_msgID = MS_SOCK_TRANSFER_MSG;
-		// 	msg.m_any = jtMsg;
-		// 	msg.m_dstType = MS_JT_SERVER;
-		// 	msg.m_dstID = 1;
-		// 	m_server->PostMsg(msg);
+			MsMsg msg;
+			msg.m_msgID = MS_SOCK_TRANSFER_MSG;
+			msg.m_any = jtMsg;
+			msg.m_dstType = MS_JT_SERVER;
+			msg.m_dstID = 1;
+			m_server->PostMsg(msg);
 
-		// 	m_server->DelEvent(evt);
-		// 	return;
-		// }
+			m_server->DelEvent(evt);
+			return;
+		}
 	}
 
 	char *p2 = m_bufPtr.get();
@@ -143,6 +142,24 @@ void MsHttpHandler::HandleRead(shared_ptr<MsEvent> evt) {
 		}
 
 		MS_LOG_DEBUG("recv:%s", oriP2);
+
+		// if msg.m_uri starts with /jt/, let JtServer handle it
+		if (msg.m_uri.find("/jt/") == 0) {
+			shared_ptr<SHttpTransferMsg> jtMsg = make_shared<SHttpTransferMsg>();
+			jtMsg->httpMsg = msg;
+			jtMsg->sock = evt->GetSharedSocket();
+			jtMsg->body = string(p2, cntLen);
+			MsMsg msMsg;
+			msMsg.m_msgID = MS_JT_HTTP_MSG;
+			msMsg.m_any = jtMsg;
+			msMsg.m_dstID = 1;
+			msMsg.m_dstType = MS_JT_SERVER;
+			m_server->PostMsg(msMsg);
+
+			m_server->DelEvent(evt);
+			return;
+		}
+
 #if ENABLE_RTC
 		// if msg.m_uri starts with /rtc/, let RtcServer handle it
 		if (msg.m_uri.find("/rtc/") == 0) {

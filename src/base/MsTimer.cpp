@@ -1,5 +1,4 @@
 #include "MsTimer.h"
-#include "MsLog.h"
 #include <pthread.h>
 #include <thread>
 #include <vector>

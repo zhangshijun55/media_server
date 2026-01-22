@@ -2,11 +2,9 @@
 #define MS_RTC_SINK_H
 
 #include "MsMediaSink.h"
-#include "MsMsgDef.h"
 #include "MsSocket.h"
 #include "rtc/rtc.hpp"
 #include <functional>
-#include <mutex>
 #include <queue>
 #include <thread>
 
@@ -54,7 +52,7 @@ public:
 	std::function<void(const string &)> _onWhepPeerClosed;
 
 private:
-	void ReleaseResources();
+	void SinkReleaseRes();
 	int CreateTracksAndAnswer();
 	int InitAacToOpusTranscoder();
 	void ReleaseTranscoder();

@@ -1,6 +1,5 @@
 #ifndef MS_INET_ADDR_H
 #define MS_INET_ADDR_H
-#include "MsOsConfig.h"
 #include <string>
 
 using namespace std;

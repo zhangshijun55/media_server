@@ -3,7 +3,6 @@
 #include "MsDevMgr.h"
 #include "MsGbServerHandler.h"
 #include "MsMsgDef.h"
-#include "MsPortAllocator.h"
 #include <future>
 #include <thread>
 
@@ -1017,7 +1016,7 @@ void MsGbServer::InitRecordInfo(MsMsg &msg) {
 		shared_ptr<GbSessionCtx> ctx = make_shared<GbSessionCtx>();
 		MsMsg toMsg;
 
-		toMsg.m_sessinID = msg.m_sessinID;
+		toMsg.m_sessionID = msg.m_sessionID;
 		toMsg.m_msgID = MS_RECORD_TIME_OUT;
 		toMsg.m_intVal = m_cseq;
 		ctx->m_timer = this->AddTimer(toMsg, 25);
@@ -1078,7 +1077,7 @@ void MsGbServer::QueryPreset(MsMsg &msg) {
 		shared_ptr<GbSessionCtx> ctx = make_shared<GbSessionCtx>();
 		MsMsg toMsg;
 
-		toMsg.m_sessinID = msg.m_sessinID;
+		toMsg.m_sessionID = msg.m_sessionID;
 		toMsg.m_msgID = MS_QUERY_PRESET_TIMEOUT;
 		toMsg.m_intVal = m_cseq;
 		ctx->m_timer = this->AddTimer(toMsg, 25);

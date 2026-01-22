@@ -1,10 +1,12 @@
 #include "MsCommon.h"
-#include "MsLog.h"
-#include "MsOsConfig.h"
 #include <random>
 #include <string.h>
 #include <sys/stat.h>
 #include <sys/vfs.h>
+#include <time.h>
+#include <iconv.h>
+#include <memory>
+#include <unistd.h>
 
 bool IsHeaderComplete(char *p) { return NULL != strstr(p, "\r\n\r\n"); }
 

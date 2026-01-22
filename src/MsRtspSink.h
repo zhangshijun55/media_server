@@ -1,8 +1,10 @@
 #ifndef MS_RTSP_SINK_H
 #define MS_RTSP_SINK_H
+#include "MsEvent.h"
 #include "MsLog.h"
+#include "MsMediaSink.h"
 #include "MsMsgDef.h"
-#include "MsResManager.h"
+#include "MsReactor.h"
 #include "MsRtspMsg.h"
 
 class MsIRtspServer {
@@ -77,7 +79,7 @@ public:
 
 private:
 	int WriteBuffer(const uint8_t *buf, int buf_size, int channel);
-	void ReleaseResources();
+	void SinkReleaseRes();
 	void SinkActiveClose();
 
 private:

@@ -1,7 +1,5 @@
 #ifndef MS_LOG_H
 #define MS_LOG_H
-#include "MsOsConfig.h"
-
 #include <condition_variable>
 #include <memory>
 #include <mutex>

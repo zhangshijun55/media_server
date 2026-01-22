@@ -1,4 +1,5 @@
 #include "MsInetAddr.h"
+#include <arpa/inet.h>
 
 MsInetAddr::MsInetAddr(int af, const string &ip, int port) : m_af(af), m_ip(ip), m_port(port) {}
 

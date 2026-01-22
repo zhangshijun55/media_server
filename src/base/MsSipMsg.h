@@ -4,6 +4,7 @@
 #include "MsCommon.h"
 #include "MsInetAddr.h"
 #include <vector>
+#include <memory>
 
 class MsSocket;
 

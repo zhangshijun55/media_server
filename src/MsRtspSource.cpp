@@ -88,13 +88,13 @@ void MsRtspSource::OnRun() {
 			// log video pts dts
 			// if (pkt->stream_index == m_videoIdx) {
 			// 	MS_LOG_DEBUG(
-			// 	    "video pkt pts:%lld dts:%lld key:%d",
+			// 	    "video pkt pts:%ld dts:%ld key:%d",
 			// 	    pkt->pts * 1000L * m_video->time_base.num / m_video->time_base.den,
 			// 	    pkt->dts * 1000L * m_video->time_base.num / m_video->time_base.den,
 			// 	    pkt->flags & AV_PKT_FLAG_KEY);
 			// } else if (pkt->stream_index == m_audioIdx) {
 			// 	MS_LOG_DEBUG(
-			// 	    "audio pkt pts:%lld dts:%lld size:%d",
+			// 	    "audio pkt pts:%ld dts:%ld size:%d",
 			// 	    pkt->pts * 1000L * m_audio->time_base.num / m_audio->time_base.den,
 			// 	    pkt->dts * 1000L * m_audio->time_base.num / m_audio->time_base.den,
 			// 	    pkt->size);

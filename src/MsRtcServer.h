@@ -1,19 +1,13 @@
 #ifndef MS_RTC_SERVER_H
 #define MS_RTC_SERVER_H
 
-#include "MsHttpMsg.h"
-#include "MsLog.h"
 #include "MsMsgDef.h"
 #include "MsReactor.h"
-#include "MsResManager.h"
 #include "MsRtcSink.h"
 #include "MsRtcSource.h"
-#include "MsSocket.h"
 #include "rtc/rtc.hpp"
 #include <map>
 #include <mutex>
-#include <sstream>
-#include <string.h>
 
 class MsRtcServer : public MsReactor {
 public:

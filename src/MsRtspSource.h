@@ -1,7 +1,6 @@
 #ifndef MS_RTSP_SOURCE_H
 #define MS_RTSP_SOURCE_H
 #include "MsMediaSource.h"
-#include "MsMsgDef.h"
 
 class MsRtspSource : public MsMediaSource, public std::enable_shared_from_this<MsRtspSource> {
 public:

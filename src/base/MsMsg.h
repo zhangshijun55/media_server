@@ -1,7 +1,6 @@
 #ifndef MS_MSG_H
 #define MS_MSG_H
 
-#include "MsOsConfig.h"
 #include <any>
 #include <string>
 
@@ -14,16 +13,14 @@ enum MS_SYS_MSG_ID {
 
 class MsMsg {
 public:
-	MsMsg();
+	int m_sessionID = 0;
+	int m_msgID = 0;
+	int m_srcType = 0;
+	int m_srcID = 0;
+	int m_dstType = 0;
+	int m_dstID = 0;
 
-	int m_sessinID;
-	int m_msgID;
-	int m_srcType;
-	int m_srcID;
-	int m_dstType;
-	int m_dstID;
-
-	int m_intVal;
+	int m_intVal = 0;
 	string m_strVal;
 	std::any m_any;
 };

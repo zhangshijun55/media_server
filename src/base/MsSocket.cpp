@@ -1,5 +1,4 @@
 #include "MsSocket.h"
-#include "MsCommon.h"
 #include "MsLog.h"
 #include <netdb.h>
 #include <string.h>

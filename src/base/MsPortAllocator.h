@@ -3,10 +3,7 @@
 
 #include "MsSocket.h"
 #include <condition_variable>
-#include <list>
-#include <map>
 #include <mutex>
-#include <vector>
 
 #if ENABLE_HTTPS
 #include <openssl/err.h>

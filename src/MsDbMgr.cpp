@@ -1,7 +1,6 @@
 #include "MsDbMgr.h"
-
-#include "MsConfig.h"
-#include "MsDbMgr.h"
+#include <stdio.h>
+#include <string>
 
 unique_ptr<MsDbMgr> MsDbMgr::m_instance;
 mutex MsDbMgr::m_mutex;

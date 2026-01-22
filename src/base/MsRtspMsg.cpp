@@ -1,6 +1,5 @@
 #include "MsRtspMsg.h"
 #include "MsLog.h"
-#include "MsOsConfig.h"
 #include "MsSocket.h"
 
 MsRtspMsg::MsRtspMsg()

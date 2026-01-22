@@ -2,6 +2,7 @@
 #include "MsDevMgr.h"
 #include "MsFileSource.h"
 #include "MsGbSource.h"
+#include "MsJtSource.h"
 #include "MsLog.h"
 #include "MsRtspSource.h"
 #include <fstream>
@@ -12,6 +13,12 @@ static std::mutex m_mutex;
 std::shared_ptr<MsMediaSource> MsSourceFactory::CreateLiveSource(const std::string &streamID) {
 	auto device = MsDevMgr::Instance()->FindDevice(streamID);
 	if (!device) {
+		// if streamID ends with _jt, it is a JT source
+		if (streamID.size() > 3 && streamID.substr(streamID.size() - 3) == "_jt") {
+			std::lock_guard<std::mutex> lk(m_mutex);
+			return std::make_shared<MsJtSource>(streamID, MS_JT_SOURCE, m_seqID++);
+		}
+
 		MS_LOG_WARN("device:%s not found", streamID.c_str());
 		return nullptr;
 	}
@@ -59,7 +66,7 @@ std::shared_ptr<MsMediaSource> MsSourceFactory::CreateVodSource(const std::strin
 
 std::shared_ptr<MsMediaSource> MsSourceFactory::CreateGbvodSource(const std::string &streamID,
                                                                   const std::string &streamInfo) {
-	//%s-%lld-%lld-%d", devID.c_str(), nSt, nEt, nType
+	//%s-%ld-%ld-%d", devID.c_str(), nSt, nEt, nType
 	std::vector<std::string> parts = SplitString(streamInfo, "-");
 	if (parts.size() != 4) {
 		MS_LOG_WARN("invalid gbvod streamInfo:%s", streamInfo.c_str());

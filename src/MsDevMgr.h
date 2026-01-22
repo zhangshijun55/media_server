@@ -1,13 +1,12 @@
 #ifndef MS_DEV_MGR_H
 #define MS_DEV_MGR_H
 
-#include "MsCommon.h"
 #include "nlohmann/json.hpp"
-#include <map>
-#include <mutex>
+#include <string>
 #include <set>
-#include <vector>
+#include <mutex>
 
+using namespace std;
 using json = nlohmann::json;
 
 enum DEV_PRO {

@@ -3,7 +3,6 @@
 #include "MsEvent.h"
 #include "MsHttpMsg.h"
 #include "MsReactor.h"
-#include "MsSocket.h"
 
 class MsIHttpServer : public MsReactor {
 public:

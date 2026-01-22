@@ -49,6 +49,9 @@ set(MAIN_SOURCES
     src/MsSourceFactory.cpp
     src/MsRtspSource.cpp
     src/MsRtspSink.cpp
+    src/MsJtServer.cpp
+    src/MsJtSource.cpp
+    src/MsJtHandler.cpp
     src/tinyxml2/tinyxml2.cpp
 )
 
@@ -61,7 +64,6 @@ set(BASE_SOURCES
     src/base/MsHttpMsg.cpp
     src/base/MsInetAddr.cpp
     src/base/MsLog.cpp
-    src/base/MsMsg.cpp
     src/base/MsReactor.cpp
     src/base/MsRtspMsg.cpp
     src/base/MsPortAllocator.cpp

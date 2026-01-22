@@ -3,7 +3,6 @@
 
 #include "MsLog.h"
 #include "MsMediaSink.h"
-#include "MsReactor.h"
 #include <atomic>
 #include <memory>
 #include <mutex>

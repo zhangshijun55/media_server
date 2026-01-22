@@ -1,7 +1,5 @@
 #include "MsPortAllocator.h"
 #include "MsConfig.h"
-#include "MsDevMgr.h"
-#include "MsLog.h"
 
 unique_ptr<MsPortAllocator> MsPortAllocator::m_instance;
 mutex MsPortAllocator::m_mutex;
@@ -22,6 +20,9 @@ MsPortAllocator::MsPortAllocator() {
 shared_ptr<MsSocket> MsPortAllocator::AllocPort(int type, string &ip, int &port) {
 	bool bindPort;
 	int nn = 1000;
+	if (ip.empty()) {
+		ip = MsConfig::Instance()->GetConfigStr("localBindIP");
+	}
 	lock_guard<mutex> lk(MsPortAllocator::m_mutex);
 
 	while (nn--) {

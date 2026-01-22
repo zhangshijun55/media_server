@@ -1,5 +1,4 @@
 #include "MsApp.h"
-#include "MsLog.h"
 
 unique_ptr<MsApp> MsApp::m_app;
 mutex MsApp::m_mutex;

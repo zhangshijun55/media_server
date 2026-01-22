@@ -461,10 +461,10 @@ void MsGbSource::PsParseThread() {
 	while (av_read_frame(fmt_ctx, pkt) >= 0 && !m_isClosing.load()) {
 		if (pkt->stream_index == m_videoIdx || pkt->stream_index == m_audioIdx) {
 			// if (pkt->stream_index == m_videoIdx) {
-			// 	MS_LOG_DEBUG("gb source video pkt pts:%lld dts:%lld key:%d", pkt->pts, pkt->dts,
+			// 	MS_LOG_DEBUG("gb source video pkt pts:%ld dts:%ld key:%d", pkt->pts, pkt->dts,
 			// 	             pkt->flags & AV_PKT_FLAG_KEY);
 			// } else if (pkt->stream_index == m_audioIdx) {
-			// 	MS_LOG_DEBUG("gb source audio pkt pts:%lld dts:%lld size:%d", pkt->pts, pkt->dts,
+			// 	MS_LOG_DEBUG("gb source audio pkt pts:%ld dts:%ld size:%d", pkt->pts, pkt->dts,
 			// 	             pkt->size);
 			// }
 			this->NotifyStreamPacket(pkt);

@@ -2,8 +2,6 @@
 #include "MsConfig.h"
 #include "MsDbMgr.h"
 #include "MsLog.h"
-#include "MsPortAllocator.h"
-#include "MsReactor.h"
 
 unique_ptr<MsDevMgr> MsDevMgr::m_instance;
 mutex MsDevMgr::m_mutex;
@@ -400,7 +398,7 @@ values ('%s', '%s','%s', '%s', '%s', \
 
 		dev->m_deviceID = ss;
 
-		nSql = sprintf(sql, "update device set device_id='%s' where id=%lld",
+		nSql = sprintf(sql, "update device set device_id='%s' where id=%ld",
 		               dev->m_deviceID.c_str(), devId);
 
 		rc = sqlite3_exec(pSql, sql, NULL, 0, &zErrMsg);

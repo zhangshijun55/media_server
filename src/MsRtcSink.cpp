@@ -6,14 +6,13 @@
 #include "MsMsg.h"
 #include "MsMsgDef.h"
 #include "MsReactor.h"
-#include "MsThreadPool.h"
 
 extern "C" {
 #include <libavutil/channel_layout.h>
 #include <libavutil/opt.h>
 }
 
-void MsRtcSink::ReleaseResources() {
+void MsRtcSink::SinkReleaseRes() {
 	ReleaseTranscoder();
 
 	if (m_videoFmtCtx) {
@@ -64,12 +63,12 @@ void MsRtcSink::SinkActiveClose() {
 	m_error = true;
 
 	this->DetachSource();
-	this->ReleaseResources();
+	this->SinkReleaseRes();
 }
 
 void MsRtcSink::OnSourceClose() {
 	m_error = true;
-	this->ReleaseResources();
+	this->SinkReleaseRes();
 }
 
 void MsRtcSink::SetupWebRTC(const string &offerSdp, const string &httpVersion,
@@ -394,7 +393,7 @@ void MsRtcSink::OnStreamInfo(AVStream *video, int videoIdx, AVStream *audio, int
 err:
 	m_error = true;
 	this->DetachSourceNoLock();
-	this->ReleaseResources();
+	this->SinkReleaseRes();
 }
 
 void MsRtcSink::OnStreamPacket(AVPacket *pkt) {
@@ -671,7 +670,7 @@ void MsRtcSink::ProcessPkt(AVPacket *pkt) {
 	if (isVideo && m_firstVideo) {
 		if (!(pkt->flags & AV_PKT_FLAG_KEY)) {
 			// MS_LOG_WARN("StreamID:%s, sinkID:%d drop non-key video pkt at the beginning "
-			//             "pts:%lld dts:%lld size:%d",
+			//             "pts:%ld dts:%ld size:%d",
 			//             m_streamID.c_str(), m_sinkID, pkt->pts, pkt->dts, pkt->size);
 			return;
 		}
@@ -776,8 +775,8 @@ void MsRtcSink::ProcessPkt(AVPacket *pkt) {
 			this->ProcessPkt(apkt);
 		} else {
 			// // drop pkt
-			MS_LOG_WARN("StreamID:%s, sinkID:%d drop buffered audio pkt, ori_ms:%lld "
-			            "apkt_ms:%lld diff:%lld",
+			MS_LOG_WARN("StreamID:%s, sinkID:%d drop buffered audio pkt, ori_ms:%ld "
+			            "apkt_ms:%ld diff:%ld",
 			            m_streamID.c_str(), m_sinkID, ori_ms, apkt_ms, diff);
 		}
 		av_packet_free(&apkt);

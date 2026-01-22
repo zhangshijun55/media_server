@@ -2,7 +2,7 @@
 #include "MsCommon.h"
 #include "MsConfig.h"
 #include "MsRtcSink.h"
-#include "MsSourceFactory.h"
+#include "MsResManager.h"
 
 void MsRtcServer::Run() {
 	this->RegistToManager();

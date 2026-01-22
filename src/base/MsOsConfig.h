@@ -4,7 +4,6 @@
 #include <arpa/inet.h>
 #include <fcntl.h>
 #include <iconv.h>
-#include <signal.h>
 #include <strings.h>
 #include <sys/epoll.h>
 #include <sys/eventfd.h>

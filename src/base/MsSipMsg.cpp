@@ -1,7 +1,6 @@
 #include "MsSipMsg.h"
 #include "MsLog.h"
 #include "MsMd5.h"
-#include "MsOsConfig.h"
 #include "MsSocket.h"
 #include <string.h>
 #include <time.h>

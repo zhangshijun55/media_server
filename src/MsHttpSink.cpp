@@ -131,7 +131,7 @@ void MsHttpSink::OnStreamInfo(AVStream *video, int videoIdx, AVStream *audio, in
 err:
 	m_error = true;
 	this->DetachSourceNoLock();
-	this->ReleaseResources();
+	this->SinkReleaseRes();
 }
 
 int MsHttpSink::WriteBuffer(const uint8_t *buf, int buf_size) {
@@ -238,17 +238,17 @@ void MsHttpSink::SinkActiveClose() {
 	m_error = true;
 
 	this->DetachSource();
-	this->ReleaseResources();
+	this->SinkReleaseRes();
 }
 
 // TODO: need fix
 void MsHttpSink::PassiveClose() {
 	m_error = true;
 	// this->DetachSourceNoLock();
-	// this->ReleaseResources();
+	// this->SinkReleaseRes();
 }
 
-void MsHttpSink::ReleaseResources() {
+void MsHttpSink::SinkReleaseRes() {
 	this->clear_que();
 
 	if (m_evt && m_reactor) {
@@ -271,7 +271,7 @@ void MsHttpSink::ReleaseResources() {
 
 void MsHttpSink::OnSourceClose() {
 	m_error = true;
-	this->ReleaseResources();
+	this->SinkReleaseRes();
 }
 
 void MsHttpSink::OnStreamPacket(AVPacket *pkt) {
@@ -369,8 +369,8 @@ void MsHttpSink::OnStreamPacket(AVPacket *pkt) {
 			this->OnStreamPacket(apkt);
 		} else {
 			// drop pkt
-			MS_LOG_WARN("StreamID:%s, sinkID:%d drop buffered audio pkt, ori_ms:%lld "
-			            "apkt_ms:%lld diff:%lld",
+			MS_LOG_WARN("StreamID:%s, sinkID:%d drop buffered audio pkt, ori_ms:%ld "
+			            "apkt_ms:%ld diff:%ld",
 			            m_streamID.c_str(), m_sinkID, ori_ms, apkt_ms, diff);
 		}
 		av_packet_free(&apkt);

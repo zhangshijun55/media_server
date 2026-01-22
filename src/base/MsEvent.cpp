@@ -1,5 +1,4 @@
 #include "MsEvent.h"
-#include "MsLog.h"
 
 MsEvent::MsEvent(shared_ptr<MsSocket> &sock, int eventMask,
                  const shared_ptr<MsEventHandler> &handler)
