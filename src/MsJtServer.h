@@ -88,6 +88,10 @@ public:
 	void SendCommonResponse(shared_ptr<MsSocket> sock, const string &terminalPhone,
 	                        uint16_t respSerialNo, uint16_t respMsgId, uint8_t result);
 
+	shared_ptr<SJtStreamInfo> GetStreamInfo(const string &terminalPhone);
+	void StartLiveStream(shared_ptr<SJtStartStreamReq> req);
+	void StopLiveStream(const string &terminalPhone, int channelId);
+
 private:
 	void HandleHttpMsg(shared_ptr<SHttpTransferMsg> rtcMsg);
 
@@ -102,13 +106,10 @@ private:
 		shared_ptr<SJtStreamInfo> m_avAttr;
 		shared_ptr<SJtChannelInfo> m_channelInfo;
 
-		MsMsg m_reqMsg;
 		uint16_t m_waitSeq = UINT16_MAX;
 		int m_waitTimerID = -1;
+		std::promise<int> m_promise;
 	};
-
-	void RequestLiveStream(MsMsg &msg);
-	void StopLiveStream(MsMsg &msg);
 
 	void CheckStreamInfo(shared_ptr<STerminalInfo> &terminalInfo);
 	void QueryAvChannel(shared_ptr<STerminalInfo> &terminalInfo);

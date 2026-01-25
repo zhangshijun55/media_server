@@ -198,7 +198,8 @@ void MsGbSource::Exit() {
 	}
 
 	if (m_psThread) {
-		m_psThread->join();
+		if (m_psThread->joinable())
+			m_psThread->join();
 		m_psThread.reset();
 	}
 
@@ -483,7 +484,8 @@ end:
 		fmt_ctx = nullptr;
 	}
 	av_packet_free(&pkt);
-	this->SourceActiveClose();
+	if (!m_isClosing.load())
+		this->SourceActiveClose();
 }
 
 int MsGbSource::ReadBuffer(uint8_t *buf, int buf_size) {

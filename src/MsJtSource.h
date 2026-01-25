@@ -1,16 +1,15 @@
 #ifndef MS_JT_SOURCE_H
 #define MS_JT_SOURCE_H
+#include "MsJtServer.h"
 #include "MsMediaSource.h"
 #include "MsMsgDef.h"
-#include "MsReactor.h"
 #include <queue>
 #include <string>
 #include <thread>
 
-class MsJtSource : public MsMediaSource, public MsReactor {
+class MsJtSource : public MsMediaSource, public enable_shared_from_this<MsMediaSource> {
 public:
-	MsJtSource(const string &streamId, int type, int id)
-	    : MsMediaSource(streamId), MsReactor(type, id) {
+	MsJtSource(const string &streamId) : MsMediaSource(streamId) {
 		// streamId format: terminalId_channelId_streamType_jt
 		auto vec = SplitString(streamId, "_");
 		m_terminalId = vec[0];
@@ -21,11 +20,7 @@ public:
 	}
 
 	void Work() override;
-	shared_ptr<MsMediaSource> GetSharedPtr() override {
-		return dynamic_pointer_cast<MsMediaSource>(shared_from_this());
-	}
-
-	void HandleMsg(MsMsg &msg) override;
+	shared_ptr<MsMediaSource> GetSharedPtr() override { return shared_from_this(); }
 
 	void SourceActiveClose() override;
 	void OnSinksEmpty() override;
@@ -39,7 +34,7 @@ public:
 	int ReadBuffer(uint8_t *buf, int buf_size);
 
 private:
-	void GetStreamInfo(MsMsg &msg);
+	void OnStreamInfo(shared_ptr<SJtStreamInfo> avAttr);
 	void DemuxThread();
 	void SourceReleaseRes();
 
@@ -72,5 +67,6 @@ private:
 	string m_sdp;
 	int m_readSdpPos = 0;
 	std::unique_ptr<std::thread> m_demuxThread;
+	shared_ptr<MsJtServer> m_server;
 };
 #endif // MS_JT_SOURCE_H

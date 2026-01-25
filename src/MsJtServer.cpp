@@ -75,37 +75,6 @@ void MsJtServer::HandleMsg(MsMsg &msg) {
 
 	} break;
 
-	case MS_JT_GET_STREAM_INFO: {
-		MsMsg rspMsg;
-		rspMsg.m_msgID = MS_JT_GET_STREAM_INFO;
-		rspMsg.m_dstType = msg.m_srcType;
-		rspMsg.m_dstID = msg.m_srcID;
-
-		auto it = m_terminals.find(msg.m_strVal);
-		if (it != m_terminals.end()) {
-			shared_ptr<STerminalInfo> &terminalInfo = it->second;
-			if (terminalInfo->m_avAttr) {
-				rspMsg.m_intVal = 0; // indicate success
-				rspMsg.m_any = terminalInfo->m_avAttr;
-			} else {
-				MS_LOG_ERROR("JT terminal %s has no AV attributes", msg.m_strVal.c_str());
-				rspMsg.m_intVal = -1; // indicate failure
-			}
-		} else {
-			MS_LOG_ERROR("JT terminal %s not found for stream info request", msg.m_strVal.c_str());
-			rspMsg.m_intVal = -1; // indicate failure
-		}
-		this->PostMsg(rspMsg);
-	} break;
-
-	case MS_JT_START_STREAM:
-		this->RequestLiveStream(msg);
-		break;
-
-	case MS_JT_STOP_STREAM:
-		this->StopLiveStream(msg);
-		break;
-
 	case MS_HTTP_TRANSFER_MSG: {
 		auto httpMsg = std::any_cast<shared_ptr<SHttpTransferMsg>>(msg.m_any);
 		this->HandleHttpMsg(httpMsg);
@@ -118,15 +87,9 @@ void MsJtServer::HandleMsg(MsMsg &msg) {
 		auto it = m_terminals.find(terminalPhone);
 		if (it != m_terminals.end()) {
 			shared_ptr<STerminalInfo> &terminalInfo = it->second;
-			MsMsg &reqMsg = terminalInfo->m_reqMsg;
-			MS_LOG_WARN("JT terminal %s msg:%d timeout", terminalPhone.c_str(), reqMsg.m_msgID);
+			MS_LOG_WARN("JT terminal %stimeout", terminalPhone.c_str());
 
-			MsMsg rsp;
-			rsp.m_msgID = reqMsg.m_msgID;
-			rsp.m_srcType = reqMsg.m_srcType;
-			rsp.m_srcID = reqMsg.m_srcID;
-			rsp.m_intVal = -1; // indicate failure
-			this->PostMsg(rsp);
+			terminalInfo->m_promise.set_value(-1); // indicate failure
 
 			terminalInfo->m_waitTimerID = -1;
 			terminalInfo->m_waitSeq = UINT16_MAX;
@@ -425,12 +388,8 @@ void MsJtServer::OnTerminalCommonRsp(shared_ptr<MsEvent> evt, JT808Message &msg,
 
 	if (respMsgId == JT_LIVE_STREAM_REQ && terminalInfo->m_waitTimerID != -1 &&
 	    respSerialNo == terminalInfo->m_waitSeq) {
-		MsMsg rsp;
-		rsp.m_msgID = terminalInfo->m_reqMsg.m_msgID;
-		rsp.m_srcType = terminalInfo->m_reqMsg.m_srcType;
-		rsp.m_srcID = terminalInfo->m_reqMsg.m_srcID;
-		rsp.m_intVal = (result == 0) ? 0 : -1; // success or failure
-		this->PostMsg(rsp);
+
+		terminalInfo->m_promise.set_value((result == 0) ? 0 : -1); // indicate success or failure
 
 		this->DelTimer(terminalInfo->m_waitTimerID);
 		terminalInfo->m_waitTimerID = -1;
@@ -574,34 +533,34 @@ void MsJtServer::SendCommonResponse(shared_ptr<MsSocket> sock, const string &ter
 	SendMessage(sock, JT_PLATFORM_COMMON_RSP, terminalPhone, body);
 }
 
-void MsJtServer::RequestLiveStream(MsMsg &msg) {
-	string &terminalPhone = msg.m_strVal;
-	shared_ptr<SJtStartStreamReq> streamReq =
-	    std::any_cast<shared_ptr<SJtStartStreamReq>>(msg.m_any);
-	string ip = streamReq->m_ip;
-	uint16_t tcpPort = streamReq->m_tcpPort;
-	uint16_t udpPort = streamReq->m_udpPort;
-	uint8_t channel = streamReq->m_channel;
-	uint8_t dataType = streamReq->m_dataType;
-	uint8_t streamType = streamReq->m_streamType;
+shared_ptr<SJtStreamInfo> MsJtServer::GetStreamInfo(const string &terminalPhone) {
+	auto it = m_terminals.find(terminalPhone);
+	if (it != m_terminals.end()) {
+		shared_ptr<STerminalInfo> &terminalInfo = it->second;
+		return terminalInfo->m_avAttr;
+	}
+	return nullptr;
+}
 
-	MsMsg rsp;
-	rsp.m_msgID = MS_JT_START_STREAM;
-	rsp.m_srcType = msg.m_srcType;
-	rsp.m_srcID = msg.m_srcID;
+void MsJtServer::StartLiveStream(shared_ptr<SJtStartStreamReq> req) {
+	string &terminalPhone = req->m_terminalPhone;
+	string ip = req->m_ip;
+	uint16_t tcpPort = req->m_tcpPort;
+	uint16_t udpPort = req->m_udpPort;
+	uint8_t channel = req->m_channel;
+	uint8_t dataType = req->m_dataType;
+	uint8_t streamType = req->m_streamType;
 
-	auto it = m_terminals.find(msg.m_strVal);
+	auto it = m_terminals.find(terminalPhone);
 	if (it != m_terminals.end()) {
 		shared_ptr<STerminalInfo> terminalInfo = it->second;
 		if (terminalInfo->m_authenticated && terminalInfo->m_sock) {
 			if (terminalInfo->m_waitTimerID != -1) {
 				// already waiting for previous request
-				MS_LOG_INFO("JT terminal %s has request pending", terminalPhone.c_str());
-				rsp.m_intVal = -1; // indicate failure
-				this->PostMsg(rsp);
+				MS_LOG_ERROR("JT terminal %s has request pending", terminalPhone.c_str());
+				req->m_promise.set_value(-1); // indicate failure
 				return;
 			}
-			terminalInfo->m_reqMsg = msg;
 
 			// Construct body
 			vector<uint8_t> body;
@@ -641,28 +600,25 @@ void MsJtServer::RequestLiveStream(MsMsg &msg) {
 			toMsg.m_intVal = JT_LIVE_STREAM_REQ;
 			terminalInfo->m_waitTimerID = this->AddTimer(toMsg, 10);
 			terminalInfo->m_waitSeq = m_serialNo - 1;
+			terminalInfo->m_promise = std::move(req->m_promise);
 
 		} else {
 			MS_LOG_WARN("JT terminal %s not authenticated or socket invalid",
 			            terminalPhone.c_str());
-			rsp.m_intVal = -1; // indicate failure
-			this->PostMsg(rsp);
+			req->m_promise.set_value(-1); // indicate failure
 		}
 	} else {
 		MS_LOG_WARN("JT terminal %s not found for live stream request", terminalPhone.c_str());
-		rsp.m_intVal = -1; // indicate failure
-		this->PostMsg(rsp);
+		req->m_promise.set_value(-1); // indicate failure
 	}
 }
 
-void MsJtServer::StopLiveStream(MsMsg &msg) {
-	string &terminalPhone = msg.m_strVal;
+void MsJtServer::StopLiveStream(const string &terminalPhone, int channelId) {
 	auto it = m_terminals.find(terminalPhone);
 	if (it != m_terminals.end()) {
 		shared_ptr<STerminalInfo> terminalInfo = it->second;
 		if (terminalInfo->m_authenticated && terminalInfo->m_sock) {
-			int channel = msg.m_intVal;
-
+			int channel = channelId;
 			// JT/T 1078-2016 0x9102
 			vector<uint8_t> body;
 			body.push_back(channel); // Logical Channel No

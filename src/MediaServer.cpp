@@ -10,7 +10,6 @@
 #include "MsMsgDef.h"
 #include "MsRtmpServer.h"
 #include "MsRtspSink.h"
-#include "MsThreadPool.h"
 #include "MsTimer.h"
 #include <signal.h>
 
@@ -21,7 +20,6 @@
 int main(int argc, char *argv[]) {
 	signal(SIGPIPE, SIG_IGN);
 
-	MsThreadPool::Instance().spawn(4);
 	MsConfig *config = MsConfig::Instance();
 	config->LoadConfig();
 

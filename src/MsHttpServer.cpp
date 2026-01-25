@@ -4,7 +4,6 @@
 #include "MsDevMgr.h"
 #include "MsHttpHandler.h"
 #include "MsLog.h"
-#include "MsThreadPool.h"
 #include <fstream>
 #include <thread>
 
@@ -143,8 +142,10 @@ void MsHttpServer::QueryPreset(shared_ptr<MsEvent> evt, MsHttpMsg &msg, char *bo
 	} else if ((dev->m_protocol == RTSP_DEV || dev->m_protocol == ONVIF_DEV) &&
 	           dev->m_onvifptzurl.size() && dev->m_onvifprofile.size()) {
 
-		MsThreadPool::Instance().enqueue(MsOnvifHandler::QueryPreset, dev->m_user, dev->m_pass,
-		                                 dev->m_onvifptzurl, dev->m_onvifprofile, prom);
+		thread(MsOnvifHandler::QueryPreset, dev->m_user, dev->m_pass, dev->m_onvifptzurl,
+		       dev->m_onvifprofile, prom)
+		    .detach();
+
 	} else {
 		MS_LOG_WARN("dev:%s not support preset query", devId.c_str());
 		json rsp;
@@ -155,8 +156,10 @@ void MsHttpServer::QueryPreset(shared_ptr<MsEvent> evt, MsHttpMsg &msg, char *bo
 	}
 
 	std::future<string> fut = prom->get_future();
-	MsThreadPool::Instance().enqueue(
-	    [fut = std::move(fut), evt]() mutable { SendHttpRsp(evt->GetSocket(), fut.get()); });
+
+	thread([fut = std::move(fut), evt]() mutable {
+		SendHttpRsp(evt->GetSocket(), fut.get());
+	}).detach();
 }
 
 void MsHttpServer::FileUpload(shared_ptr<MsEvent> evt, MsHttpMsg &msg, char *body, int len) {
@@ -563,8 +566,10 @@ void MsHttpServer::QueryRecord(shared_ptr<MsEvent> evt, MsHttpMsg &msg, char *bo
 		this->PostMsg(qr);
 
 		std::future<string> fut = prom->get_future();
-		MsThreadPool::Instance().enqueue(
-		    [fut = std::move(fut), evt]() mutable { SendHttpRsp(evt->GetSocket(), fut.get()); });
+
+		thread([fut = std::move(fut), evt]() mutable {
+			SendHttpRsp(evt->GetSocket(), fut.get());
+		}).detach();
 
 	} catch (json::exception &e) {
 		MS_LOG_WARN("json err:%s", e.what());
@@ -1165,10 +1170,10 @@ void MsHttpServer::GetRegistDomain(shared_ptr<MsEvent> evt, MsHttpMsg &msg, char
 	qr.m_any = prom;
 	this->PostMsg(qr);
 
-	MsThreadPool::Instance().enqueue([evt, fut = std::move(fut)]() mutable {
+	thread([evt, fut = std::move(fut)]() mutable {
 		string rsp = fut.get();
 		SendHttpRsp(evt->GetSocket(), rsp);
-	});
+	}).detach();
 }
 
 void MsHttpServer::GetMediaNode(shared_ptr<MsEvent> evt, MsHttpMsg &msg, char *body, int len) {

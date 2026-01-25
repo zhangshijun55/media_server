@@ -1,6 +1,7 @@
 #ifndef MS_MSG_DEF_H
 #define MS_MSG_DEF_H
 #include "MsHttpMsg.h"
+#include <future>
 #include <memory>
 #include <stdint.h>
 #include <string>
@@ -34,10 +35,7 @@ enum MS_MSG_ID {
 	MS_WHEP_PEER_CLOSED,
 	MS_SOCK_TRANSFER_MSG,
 	MS_JT_SOCKET_CLOSE,
-	MS_JT_START_STREAM,
-	MS_JT_STOP_STREAM,
 	MS_JT_REQ_TIMEOUT,
-	MS_JT_GET_STREAM_INFO,
 };
 
 enum MS_SERVICE_TYPE {
@@ -49,7 +47,6 @@ enum MS_SERVICE_TYPE {
 	MS_RTSP_SERVER,
 	MS_RTC_SERVER,
 	MS_JT_SERVER,
-	MS_JT_SOURCE,
 	MS_RTMP_SERVER,
 };
 
@@ -142,6 +139,7 @@ struct SJtStartStreamReq {
 	uint8_t m_channel = 1;    // default channel 1-main driver
 	uint8_t m_dataType = 0;   // default video and audio
 	uint8_t m_streamType = 0; // default main stream
+	std::promise<int> m_promise;
 };
 
 struct SJtChannelItem {

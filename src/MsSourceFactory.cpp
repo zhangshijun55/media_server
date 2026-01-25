@@ -15,8 +15,7 @@ std::shared_ptr<MsMediaSource> MsSourceFactory::CreateLiveSource(const std::stri
 	if (!device) {
 		// if streamID ends with _jt, it is a JT source
 		if (streamID.size() > 3 && streamID.substr(streamID.size() - 3) == "_jt") {
-			std::lock_guard<std::mutex> lk(m_mutex);
-			return std::make_shared<MsJtSource>(streamID, MS_JT_SOURCE, m_seqID++);
+			return std::make_shared<MsJtSource>(streamID);
 		}
 
 		MS_LOG_WARN("device:%s not found", streamID.c_str());

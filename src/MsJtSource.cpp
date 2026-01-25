@@ -9,7 +9,7 @@ public:
 	MsJtSourceHandler(const shared_ptr<MsJtSource> &source, HandlerType type)
 	    : m_source(source), m_type(type), m_bufPtr(new uint8_t[4096]), m_bufSize(4096),
 	      m_bufOff(0) {}
-	~MsJtSourceHandler() {}
+	~MsJtSourceHandler() { MS_LOG_INFO("~MsJtSourceHandler"); }
 
 	void HandleRead(shared_ptr<MsEvent> evt) override {
 		if (m_type == ACCEPT_HANDLER) {
@@ -128,7 +128,13 @@ private:
 };
 
 void MsJtSource::Work() {
-	this->RegistToManager();
+	auto server =
+	    dynamic_pointer_cast<MsJtServer>(MsReactorMgr::Instance()->GetReactor(MS_JT_SERVER, 1));
+	if (!server) {
+		MS_LOG_ERROR("JT source cannot find JT server reactor");
+		return;
+	}
+	m_server = server;
 
 	string ip;
 	int portNum = 0;
@@ -143,67 +149,36 @@ void MsJtSource::Work() {
 	    tcpSock, MS_FD_ACCEPT | MS_FD_CLOSE,
 	    make_shared<MsJtSourceHandler>(dynamic_pointer_cast<MsJtSource>(shared_from_this()),
 	                                   MsJtSourceHandler::ACCEPT_HANDLER));
-	this->AddEvent(m_acceptEvent);
+	m_server->AddEvent(m_acceptEvent);
 
 	m_udpEvent = make_shared<MsEvent>(
 	    udpSock, MS_FD_READ | MS_FD_CLOSE,
 	    make_shared<MsJtSourceHandler>(dynamic_pointer_cast<MsJtSource>(shared_from_this()),
 	                                   MsJtSourceHandler::UDP_DATA_HANDLER));
-	this->AddEvent(m_udpEvent);
+	m_server->AddEvent(m_udpEvent);
 
 	m_ip = ip;
 	m_port = portNum;
 
-	MsMsg msg;
-	msg.m_msgID = MS_JT_GET_STREAM_INFO;
-	msg.m_dstType = MS_JT_SERVER;
-	msg.m_dstID = 1;
-	msg.m_strVal = m_streamID;
-	this->PostMsg(msg);
-
-	std::thread worker(&MsReactor::Wait, shared_from_this());
+	std::thread worker([this]() { this->OnStreamInfo(m_server->GetStreamInfo(m_terminalId)); });
 	worker.detach();
-}
-
-void MsJtSource::HandleMsg(MsMsg &msg) {
-	switch (msg.m_msgID) {
-	case MS_JT_START_STREAM: {
-		bool success = msg.m_intVal == 0;
-		if (!success) {
-			MS_LOG_ERROR("JT source:%s failed to start stream", m_streamID.c_str());
-			this->SourceActiveClose();
-		} else {
-			MS_LOG_INFO("JT source:%s started stream successfully", m_streamID.c_str());
-		}
-	} break;
-
-	case MS_JT_GET_STREAM_INFO:
-		this->GetStreamInfo(msg);
-		break;
-
-	default:
-		MsReactor::HandleMsg(msg);
-		break;
-	}
 }
 
 void MsJtSource::SourceActiveClose() {
 	MsMediaSource::SourceActiveClose();
 	this->SourceReleaseRes();
-	this->PostExit();
 }
 
 void MsJtSource::OnSinksEmpty() {
 	MsMediaSource::OnSinksEmpty();
 	this->SourceReleaseRes();
-	this->PostExit();
 }
 
 void MsJtSource::CloseAcceptEvent() {
 	if (m_acceptEvent == nullptr) {
 		return;
 	}
-	this->DelEvent(m_acceptEvent);
+	m_server->DelEvent(m_acceptEvent);
 	m_acceptEvent = nullptr;
 
 	if (m_tcpEvent == nullptr && m_udpEvent == nullptr) {
@@ -216,7 +191,7 @@ void MsJtSource::CloseTcpEvent() {
 	if (m_tcpEvent == nullptr) {
 		return;
 	}
-	this->DelEvent(m_tcpEvent);
+	m_server->DelEvent(m_tcpEvent);
 	m_tcpEvent = nullptr;
 
 	if (m_acceptEvent == nullptr && m_udpEvent == nullptr) {
@@ -229,7 +204,7 @@ void MsJtSource::CloseUdpEvent() {
 	if (m_udpEvent == nullptr) {
 		return;
 	}
-	this->DelEvent(m_udpEvent);
+	m_server->DelEvent(m_udpEvent);
 	m_udpEvent = nullptr;
 
 	if (m_acceptEvent == nullptr && m_tcpEvent == nullptr) {
@@ -242,12 +217,12 @@ void MsJtSource::OnTcpEvent(shared_ptr<MsEvent> evt) {
 	if (m_tcpEvent != nullptr) {
 		// this is highly unexpected
 		MS_LOG_WARN("JT source TCP event is not null");
-		this->DelEvent(m_tcpEvent);
+		m_server->DelEvent(m_tcpEvent);
 		m_tcpEvent = nullptr;
 	}
 
 	m_tcpEvent = evt;
-	this->AddEvent(m_tcpEvent);
+	m_server->AddEvent(m_tcpEvent);
 }
 
 void MsJtSource::PrepareRtp(uint8_t dataType, uint16_t seq, uint64_t timestamp, uint8_t *data,
@@ -328,14 +303,7 @@ void MsJtSource::PrepareRtp(uint8_t dataType, uint16_t seq, uint64_t timestamp, 
 	m_condVar.notify_one();
 }
 
-void MsJtSource::GetStreamInfo(MsMsg &msg) {
-	if (msg.m_intVal != 0) {
-		MS_LOG_ERROR("JT source:%s failed to get stream info", m_streamID.c_str());
-		this->SourceActiveClose();
-		return;
-	}
-
-	shared_ptr<SJtStreamInfo> avAttr = std::any_cast<shared_ptr<SJtStreamInfo>>(msg.m_any);
+void MsJtSource::OnStreamInfo(shared_ptr<SJtStreamInfo> avAttr) {
 	if (avAttr == nullptr) {
 		MS_LOG_ERROR("JT source:%s received null AV attributes", m_streamID.c_str());
 		this->SourceActiveClose();
@@ -381,10 +349,7 @@ void MsJtSource::GetStreamInfo(MsMsg &msg) {
 	}
 
 	m_demuxReady = true;
-	MsMsg reqMsg;
-	reqMsg.m_msgID = MS_JT_START_STREAM;
-	reqMsg.m_dstType = MS_JT_SERVER;
-	reqMsg.m_dstID = 1;
+
 	shared_ptr<SJtStartStreamReq> startReq = make_shared<SJtStartStreamReq>();
 	startReq->m_terminalPhone = m_terminalId;
 	startReq->m_ip = m_ip;
@@ -392,8 +357,8 @@ void MsJtSource::GetStreamInfo(MsMsg &msg) {
 	startReq->m_udpPort = m_port;
 	startReq->m_channel = m_channelId;
 	startReq->m_streamType = m_streamType;
-	reqMsg.m_any = startReq;
-	this->PostMsg(reqMsg);
+	std::future<int> fut = startReq->m_promise.get_future();
+	m_server->StartLiveStream(startReq);
 
 	char sdp[2048] = {0};
 	int offset = 0;
@@ -429,6 +394,19 @@ void MsJtSource::GetStreamInfo(MsMsg &msg) {
 
 	m_sdp = sdp;
 	m_demuxThread = make_unique<std::thread>(&MsJtSource::DemuxThread, this);
+
+	std::thread waitWorker([this, fut = std::move(fut)]() mutable {
+		int ret = fut.get();
+		if (ret != 0) {
+			MS_LOG_ERROR("JT source:%s failed to start live stream on terminal",
+			             m_terminalId.c_str());
+			this->SourceActiveClose();
+		} else {
+			MS_LOG_INFO("JT source:%s live stream started on terminal successfully",
+			            m_terminalId.c_str());
+		}
+	});
+	waitWorker.detach();
 }
 
 int MsJtSource::ReadBuffer(uint8_t *buf, int buf_size) {
@@ -547,7 +525,7 @@ void MsJtSource::DemuxThread() {
 
 	pkt = av_packet_alloc();
 
-	while (!m_isClosing && av_read_frame(fmtCtx, pkt) >= 0) {
+	while (!m_isClosing.load() && av_read_frame(fmtCtx, pkt) >= 0) {
 		if (pkt->stream_index == m_videoIdx || pkt->stream_index == m_audioIdx) {
 			if (pkt->stream_index == m_videoIdx) {
 				if (fisrtVideoPkt) {
@@ -581,14 +559,16 @@ err:
 	}
 
 	av_packet_free(&pkt);
-	this->SourceActiveClose();
+	if (!m_isClosing.load())
+		this->SourceActiveClose();
 }
 
 void MsJtSource::SourceReleaseRes() {
-	if (m_demuxThread && m_demuxThread->joinable()) {
+	if (m_demuxThread) {
 		m_isClosing.store(true);
 		m_condVar.notify_all();
-		m_demuxThread->join();
+		if (m_demuxThread->joinable())
+			m_demuxThread->join();
 		m_demuxThread = nullptr;
 	}
 
@@ -601,28 +581,22 @@ void MsJtSource::SourceReleaseRes() {
 	}
 
 	if (m_acceptEvent) {
-		this->DelEvent(m_acceptEvent);
+		m_server->DelEvent(m_acceptEvent);
 		m_acceptEvent = nullptr;
 	}
 
 	if (m_tcpEvent) {
-		this->DelEvent(m_tcpEvent);
+		m_server->DelEvent(m_tcpEvent);
 		m_tcpEvent = nullptr;
 	}
 
 	if (m_udpEvent) {
-		this->DelEvent(m_udpEvent);
+		m_server->DelEvent(m_udpEvent);
 		m_udpEvent = nullptr;
 	}
 
 	if (m_videoPt > 0) {
-		MsMsg msg;
-		msg.m_msgID = MS_JT_STOP_STREAM;
-		msg.m_dstType = MS_JT_SERVER;
-		msg.m_dstID = 1;
-		msg.m_strVal = m_terminalId;
-		msg.m_intVal = m_channelId;
-		this->PostMsg(msg);
+		m_server->StopLiveStream(m_terminalId, m_channelId);
 		m_videoPt = 0;
 	}
 }
