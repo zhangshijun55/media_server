@@ -48,7 +48,8 @@ void MsRtcSource::SourceActiveClose() {
 	}
 
 	if (m_rtpThread) {
-		m_rtpThread->join();
+		if (m_rtpThread->joinable())
+			m_rtpThread->join();
 		m_rtpThread.reset();
 	}
 

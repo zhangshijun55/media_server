@@ -9,7 +9,5 @@
     "netMap": null,
     "queryRecordType": "all",
     "rtcPort": 26090,
-    "rtpTransport": 2,
-    "sslCertFile": "conf/cert.pem",
-    "sslKeyFile": "conf/key.pem"
+    "rtpTransport": 2
 }

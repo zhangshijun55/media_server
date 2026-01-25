@@ -4,7 +4,7 @@
 [![Build Base](https://github.com/greenjim301-ux/media-server/actions/workflows/build-base.yml/badge.svg)](https://github.com/greenjim301-ux/media-server/actions/workflows/build-base.yml)
 [![Build with WebRTC](https://github.com/greenjim301-ux/media-server/actions/workflows/build-rtc.yml/badge.svg)](https://github.com/greenjim301-ux/media-server/actions/workflows/build-rtc.yml)
 
-一个支持 GB/T 28181、RTSP、WebRTC 和 HTTP 流媒体协议的媒体服务器实现。
+一个支持 GB/T 28181、RTSP、RTMP、WebRTC 和 HTTP 流媒体协议的媒体服务器实现。
 
 ## 目录
 - [功能特性](#功能特性)
@@ -26,6 +26,7 @@
   - [GB28181 录像回放](#gb28181-录像回放)
   - [WebRTC WHIP 使用](#webrtc-whip-使用)
   - [WebRTC WHEP 使用](#webrtc-whep-使用)
+  - [RTMP 推流使用](#rtmp-推流使用)
 
 ## 功能特性
 
@@ -33,6 +34,7 @@
 - **RTSP 服务器**: 支持实时流传输协议 (RTSP) 进行媒体流分发。
 - **HTTP 服务器**: 内置 HTTP 服务器，用于管理和信令交互。
 - **HTTP 流媒体**: 支持通过 HTTP 协议传输媒体流。
+- **RTMP 支持**: 支持 RTMP 推流。
 - **WebRTC 支持**: 支持 WebRTC WHIP（推流）和 WHEP（播放）协议。
 - **ONVIF 支持**: 包含对 ONVIF 协议的处理。
 - **设备管理**: 管理连接的设备。
@@ -799,3 +801,58 @@ WHEP (WebRTC-HTTP Egress Protocol) 允许您通过 WebRTC 以超低延迟播放�
    **响应:** SDP Answer (201 Created)
 
    **编解码器支持:** 对于 WHEP，仅支持 H.264、H.265 和 Opus 编解码器。AAC 音频将自动转码为 Opus。
+
+### RTMP 推流使用
+
+您可以使用 RTMP 协议推送直播流。
+
+**URL:** `rtmp://<server_ip>:<rtmpPort>/live/<streamId>`
+
+**使用 FFmpeg 推流示例:**
+
+```bash
+ffmpeg -re -i input.mp4 -c copy -f flv rtmp://127.0.0.1:1935/live/mystream
+```
+
+**获取播放地址:**
+
+1. **获取流列表:**
+
+   **URL:** `http://<server_ip>:<httpPort>/rtmp/stream`
+   **Method:** `GET`
+
+   响应包含当前活动的流列表。
+
+   **响应示例:**
+   ```json
+   {
+     "code": 0,
+     "message": "OK",
+     "result": [
+       {
+         "stream": "mystream",
+         "videoCodec": "H.264",
+         "audioCodec": "AAC"
+       }
+     ]
+   }
+   ```
+
+2. **获取特定流的播放地址:**
+
+   **URL:** `http://<server_ip>:<httpPort>/rtmp/stream/url?stream=<streamId>`
+   **Method:** `GET`
+
+   **响应示例:**
+   ```json
+   {
+     "code": 0,
+     "msg": "success",
+     "result": {
+       "httpFlvUrl": "http://192.168.1.100:8080/live/mystream.flv",
+       "httpTsUrl": "http://192.168.1.100:8080/live/mystream.ts",
+       "rtcUrl": "http://192.168.1.100:8080/rtc/whep/mystream",
+       "rtspUrl": "rtsp://192.168.1.100:554/live/mystream"
+     }
+   }
+   ```

@@ -55,6 +55,20 @@ void MsMediaSource::NotifySourceClose() {
 	m_sinks.clear();
 }
 
+string MsMediaSource::GetVideoCodec() {
+	if (m_video && m_video->codecpar) {
+		return avcodec_get_name(m_video->codecpar->codec_id);
+	}
+	return string();
+}
+
+string MsMediaSource::GetAudioCodec() {
+	if (m_audio && m_audio->codecpar) {
+		return avcodec_get_name(m_audio->codecpar->codec_id);
+	}
+	return string();
+}
+
 void MsMediaSource::NotifyStreamPacket(AVPacket *pkt) {
 	std::lock_guard<std::mutex> lock(m_sinkMutex);
 	for (auto &sink : m_sinks) {

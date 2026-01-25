@@ -24,6 +24,9 @@ public:
 	void RemoveSinkNoLock(const std::string &type, int sinkID);
 	void NotifyStreamInfo();
 	void NotifySourceClose();
+	string GetVideoCodec();
+	string GetAudioCodec();
+	string GetStreamID() { return m_streamID; }
 	virtual void UpdateVideoInfo() {}
 	virtual void NotifyStreamPacket(AVPacket *pkt);
 	virtual void SourceActiveClose();

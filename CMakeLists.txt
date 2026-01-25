@@ -52,6 +52,10 @@ set(MAIN_SOURCES
     src/MsJtServer.cpp
     src/MsJtSource.cpp
     src/MsJtHandler.cpp
+    src/MsRtmpServer.cpp
+    src/MsRtmpHandler.cpp
+    src/MsRtmpMsg.cpp
+    src/MsRtmpSource.cpp
     src/tinyxml2/tinyxml2.cpp
 )
 
@@ -74,6 +78,7 @@ set(BASE_SOURCES
     src/base/MsMd5.cpp
     src/base/MsSha1.cpp
     src/base/MsThreadPool.cpp
+    src/base/MsAmf.cpp
 )
 
 if(ENABLE_RTC)

@@ -13,6 +13,7 @@ const translations = {
         navFile: 'File',
         navGbDomain: 'GB Domain',
         navWebrtc: 'WebRTC',
+        navRtmp: 'RTMP',
 
         // Device section
         deviceList: 'Device List',
@@ -53,6 +54,10 @@ const translations = {
         // WebRTC section
         webrtcSessionList: 'WebRTC Session List',
         noSessionsFound: 'No WebRTC sessions found',
+
+        // RTMP section
+        rtmpStreamList: 'RTMP Stream List',
+        noRtmpStreamsFound: 'No RTMP streams found',
 
         // Add Device Modal
         protocol: 'Protocol',
@@ -171,6 +176,10 @@ const translations = {
         // WebRTC section
         webrtcSessionList: 'WebRTC 会话列表',
         noSessionsFound: '暂无 WebRTC 会话',
+
+        // RTMP section
+        rtmpStreamList: 'RTMP流列表',
+        noRtmpStreamsFound: '暂无RTMP流',
 
         // Add Device Modal
         protocol: '协议',
@@ -345,6 +354,8 @@ document.querySelectorAll('.nav-item').forEach(item => {
             loadGbDomains();
         } else if (target === 'webrtc') {
             loadWebRTCSessions();
+        } else if (target === 'rtmp') {
+            loadRtmpStreams();
         }
     });
 });
@@ -1784,3 +1795,115 @@ document.addEventListener('DOMContentLoaded', function () {
     // Load initial data
     loadDevices();
 });
+
+// Load RTMP Streams
+async function loadRtmpStreams() {
+    const container = document.getElementById('rtmp-content');
+    container.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+
+    try {
+        const response = await fetch(`${API_BASE_URL}/rtmp/stream`);
+        const data = await response.json();
+
+        if (data.code === 0 && data.result && data.result.length > 0) {
+            let html = `
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Stream ID</th>
+                            <th>${t('videoCodec')}</th>
+                            <th>${t('audioCodec')}</th>
+                            <th>${t('action')}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+
+            data.result.forEach(item => {
+                html += `
+                    <tr>
+                        <td>${escapeHtml(item.stream)}</td>
+                        <td>${escapeHtml(item.videoCodec || '-')}</td>
+                        <td>${escapeHtml(item.audioCodec || '-')}</td>
+                        <td>
+                            <span class="preview-icon" onclick="playRtmpStream('${escapeHtml(item.stream)}')" title="Preview">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                            </span>
+                        </td>
+                    </tr>
+                `;
+            });
+
+            html += '</tbody></table>';
+            container.innerHTML = html;
+        } else {
+             container.innerHTML = `
+                <div class="empty-state">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5.5 16a3.5 3.5 0 01-.369-6.98 4 4 0 117.753-1.977A4.5 4.5 0 1113.5 16h-8z" />
+                    </svg>
+                    <p>${t('noRtmpStreamsFound')}</p>
+                </div>
+            `;
+        }
+    } catch (error) {
+        container.innerHTML = `<div class="error-message">Error: ${error.message}</div>`;
+    }
+}
+
+// Play RTMP Stream
+async function playRtmpStream(streamId) {
+    const modal = document.getElementById('video-modal');
+    const videoElement = document.getElementById('video-player');
+    const videoTitle = document.getElementById('video-title');
+    const videoLoading = document.getElementById('video-loading');
+
+    // Show modal and loading
+    modal.classList.add('active');
+    videoTitle.textContent = `Stream: ${streamId}`;
+    videoLoading.style.display = 'block';
+
+    try {
+        const response = await fetch(`${API_BASE_URL}/rtmp/stream/url?stream=${encodeURIComponent(streamId)}`);
+        const data = await response.json();
+
+        if (data.code === 0 && data.result && data.result.httpFlvUrl) {
+            const flvUrl = data.result.httpFlvUrl;
+            
+            // Destroy existing player if any
+            if (mpegtsPlayer) {
+                mpegtsPlayer.destroy();
+                mpegtsPlayer = null;
+            }
+
+            // Check if mpegts.js is supported
+            if (mpegts.isSupported()) {
+                mpegtsPlayer = mpegts.createPlayer({
+                    type: 'flv',
+                    url: flvUrl,
+                    isLive: true,
+                    liveSync: true,
+                    liveSyncTargetLatency: 0.5,
+                    enableWorker: true
+                });
+                mpegtsPlayer.attachMediaElement(videoElement);
+                mpegtsPlayer.load();
+                mpegtsPlayer.play();
+            } else {
+                alert(t('browserNotSupported'));
+                closeVideoModal();
+            }
+        } else {
+            alert('Failed to get playback URL: ' + (data.msg || data.message || 'Unknown error'));
+            closeVideoModal();
+        }
+    } catch(error) {
+        alert('Error: ' + error.message);
+        closeVideoModal();
+    } finally {
+        videoLoading.style.display = 'none';
+    }
+}

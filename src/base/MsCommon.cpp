@@ -1,11 +1,11 @@
 #include "MsCommon.h"
+#include <iconv.h>
+#include <memory>
 #include <random>
 #include <string.h>
 #include <sys/stat.h>
 #include <sys/vfs.h>
 #include <time.h>
-#include <iconv.h>
-#include <memory>
 #include <unistd.h>
 
 bool IsHeaderComplete(char *p) { return NULL != strstr(p, "\r\n\r\n"); }
@@ -512,7 +512,12 @@ std::vector<std::string> SplitString(const std::string &input, const std::string
 }
 
 void GetParam(const char *key, string &value, const string &uri) {
-	const char *p = strstr(uri.c_str(), key);
+	const char *p = strchr(uri.c_str(), '?');
+	if (!p) {
+		return;
+	}
+	++p;
+	p = strstr(p, key);
 	if (!p) {
 		return;
 	}

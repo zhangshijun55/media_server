@@ -66,6 +66,23 @@ void MsHttpHandler::HandleRead(shared_ptr<MsEvent> evt) {
 			return;
 		}
 
+		if (m_bufPtr[0] == 0x03) {
+			MS_LOG_INFO("recv rtmp data, transfer to rtmp server");
+			shared_ptr<SSockTransferMsg> rtmpMsg = make_shared<SSockTransferMsg>();
+			rtmpMsg->sock = evt->GetSharedSocket();
+			rtmpMsg->data.insert(rtmpMsg->data.end(), m_bufPtr.get(), m_bufPtr.get() + recv);
+
+			MsMsg msg;
+			msg.m_msgID = MS_SOCK_TRANSFER_MSG;
+			msg.m_any = rtmpMsg;
+			msg.m_dstType = MS_RTMP_SERVER;
+			msg.m_dstID = 1;
+			m_server->PostMsg(msg);
+
+			m_server->DelEvent(evt);
+			return;
+		}
+
 		if (m_bufPtr[0] == 0x7e) {
 			// transfer to jt server
 			MS_LOG_INFO("rtsp recv jt808 data, transfer to jt server");
@@ -150,10 +167,26 @@ void MsHttpHandler::HandleRead(shared_ptr<MsEvent> evt) {
 			jtMsg->sock = evt->GetSharedSocket();
 			jtMsg->body = string(p2, cntLen);
 			MsMsg msMsg;
-			msMsg.m_msgID = MS_JT_HTTP_MSG;
+			msMsg.m_msgID = MS_HTTP_TRANSFER_MSG;
 			msMsg.m_any = jtMsg;
 			msMsg.m_dstID = 1;
 			msMsg.m_dstType = MS_JT_SERVER;
+			m_server->PostMsg(msMsg);
+
+			m_server->DelEvent(evt);
+			return;
+		}
+
+		if (msg.m_uri.find("/rtmp/") == 0) {
+			shared_ptr<SHttpTransferMsg> rtmpMsg = make_shared<SHttpTransferMsg>();
+			rtmpMsg->httpMsg = msg;
+			rtmpMsg->sock = evt->GetSharedSocket();
+			rtmpMsg->body = string(p2, cntLen);
+			MsMsg msMsg;
+			msMsg.m_msgID = MS_HTTP_TRANSFER_MSG;
+			msMsg.m_any = rtmpMsg;
+			msMsg.m_dstID = 1;
+			msMsg.m_dstType = MS_RTMP_SERVER;
 			m_server->PostMsg(msMsg);
 
 			m_server->DelEvent(evt);
@@ -169,7 +202,7 @@ void MsHttpHandler::HandleRead(shared_ptr<MsEvent> evt) {
 			rtcMsg->sock = evt->GetSharedSocket();
 			rtcMsg->body = string(p2, cntLen);
 			MsMsg msMsg;
-			msMsg.m_msgID = MS_RTC_MSG;
+			msMsg.m_msgID = MS_HTTP_TRANSFER_MSG;
 			msMsg.m_any = rtcMsg;
 			msMsg.m_dstID = 1;
 			msMsg.m_dstType = MS_RTC_SERVER;

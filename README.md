@@ -6,7 +6,7 @@
 
 中文请参考 [README_CN.md](README_CN.md)
 
-A  media server implementation supporting GB/T 28181, RTSP, WebRTC and HTTP streaming protocols.
+A  media server implementation supporting GB/T 28181, RTSP, RTMP, WebRTC and HTTP streaming protocols.
 
 ## Table of Contents
 - [Features](#features)
@@ -28,6 +28,7 @@ A  media server implementation supporting GB/T 28181, RTSP, WebRTC and HTTP stre
   - [GB28181 Record Playback](#gb28181-record-playback)
   - [WebRTC WHIP Usage](#webrtc-whip-usage)
   - [WebRTC WHEP Usage](#webrtc-whep-usage)
+  - [RTMP Publish Usage](#rtmp-publish-usage)
 
 ## Features
 
@@ -35,6 +36,7 @@ A  media server implementation supporting GB/T 28181, RTSP, WebRTC and HTTP stre
 - **RTSP Server**: Supports Real Time Streaming Protocol (RTSP) for media streaming.
 - **HTTP Server**: Built-in HTTP server for management and signaling.
 - **HTTP Streaming**: Support for media streaming over HTTP.
+- **RTMP Support**: Support for RTMP publish.
 - **WebRTC Support**: Support for WebRTC WHIP (publish) and WHEP (playback) protocols.
 - **ONVIF Support**: Includes handling for ONVIF protocol.
 - **Device Management**: Manages connected devices.
@@ -801,3 +803,58 @@ WHEP (WebRTC-HTTP Egress Protocol) allows you to play live streams via WebRTC wi
    **Response:** SDP Answer (201 Created)
 
    **Codec Support:** For WHEP, only H.264, H.265, and Opus codecs are supported. AAC audio will be transcoded to Opus automatically.
+
+### RTMP Publish Usage
+
+You can publish a live stream using RTMP.
+
+**URL:** `rtmp://<server_ip>:<rtmpPort>/live/<streamId>`
+
+**Example using FFmpeg:**
+
+```bash
+ffmpeg -re -i input.mp4 -c copy -f flv rtmp://127.0.0.1:1935/live/mystream
+```
+
+**Get Playback URL:**
+
+1. **Get Stream List:**
+
+   **URL:** `http://<server_ip>:<httpPort>/rtmp/stream`
+   **Method:** `GET`
+
+   Response will contain the list of active streams.
+
+   **Response Example:**
+   ```json
+   {
+     "code": 0,
+     "message": "OK",
+     "result": [
+       {
+         "stream": "mystream",
+         "videoCodec": "H.264",
+         "audioCodec": "AAC"
+       }
+     ]
+   }
+   ```
+
+2. **Get Playback URL for a Specific Stream:**
+
+   **URL:** `http://<server_ip>:<httpPort>/rtmp/stream/url?stream=<streamId>`
+   **Method:** `GET`
+
+   **Response Example:**
+   ```json
+   {
+     "code": 0,
+     "msg": "success",
+     "result": {
+       "httpFlvUrl": "http://192.168.1.100:8080/live/mystream.flv",
+       "httpTsUrl": "http://192.168.1.100:8080/live/mystream.ts",
+       "rtcUrl": "http://192.168.1.100:8080/rtc/whep/mystream",
+       "rtspUrl": "rtsp://192.168.1.100:554/live/mystream"
+     }
+   }
+   ```

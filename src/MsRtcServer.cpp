@@ -1,8 +1,8 @@
 #include "MsRtcServer.h"
 #include "MsCommon.h"
 #include "MsConfig.h"
-#include "MsRtcSink.h"
 #include "MsResManager.h"
+#include "MsRtcSink.h"
 
 void MsRtcServer::Run() {
 	this->RegistToManager();
@@ -15,7 +15,7 @@ void MsRtcServer::Run() {
 
 void MsRtcServer::HandleMsg(MsMsg &msg) {
 	switch (msg.m_msgID) {
-	case MS_RTC_MSG: {
+	case MS_HTTP_TRANSFER_MSG: {
 		shared_ptr<SHttpTransferMsg> rtcMsg;
 		try {
 			rtcMsg = std::any_cast<shared_ptr<SHttpTransferMsg>>(msg.m_any);

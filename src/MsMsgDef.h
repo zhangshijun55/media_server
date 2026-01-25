@@ -1,9 +1,9 @@
 #ifndef MS_MSG_DEF_H
 #define MS_MSG_DEF_H
 #include "MsHttpMsg.h"
+#include <memory>
 #include <stdint.h>
 #include <string>
-#include <memory>
 
 using namespace std;
 
@@ -28,7 +28,7 @@ enum MS_MSG_ID {
 	MS_GET_REGIST_DOMAIN,
 	MS_STOP_INVITE_CALL,
 	MS_HTTP_STREAM_MSG,
-	MS_RTC_MSG,
+	MS_HTTP_TRANSFER_MSG,
 	MS_RTC_PEER_CLOSED,
 	MS_RTC_DEL_SOCK,
 	MS_WHEP_PEER_CLOSED,
@@ -37,7 +37,6 @@ enum MS_MSG_ID {
 	MS_JT_START_STREAM,
 	MS_JT_STOP_STREAM,
 	MS_JT_REQ_TIMEOUT,
-	MS_JT_HTTP_MSG,
 	MS_JT_GET_STREAM_INFO,
 };
 
@@ -51,6 +50,7 @@ enum MS_SERVICE_TYPE {
 	MS_RTC_SERVER,
 	MS_JT_SERVER,
 	MS_JT_SOURCE,
+	MS_RTMP_SERVER,
 };
 
 enum TRASNSPORT { EN_UDP = 0, EN_TCP_ACTIVE, EN_TCP_PASSIVE };

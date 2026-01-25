@@ -106,7 +106,7 @@ void MsJtServer::HandleMsg(MsMsg &msg) {
 		this->StopLiveStream(msg);
 		break;
 
-	case MS_JT_HTTP_MSG: {
+	case MS_HTTP_TRANSFER_MSG: {
 		auto httpMsg = std::any_cast<shared_ptr<SHttpTransferMsg>>(msg.m_any);
 		this->HandleHttpMsg(httpMsg);
 	} break;
