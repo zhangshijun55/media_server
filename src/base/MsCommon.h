@@ -29,7 +29,7 @@ void avio_w8(uint8_t *&s, int b);
 void avio_wb16(uint8_t *&s, unsigned int val);
 
 int64_t GetCurMs();
-void GbkToUtf8(string &src_str, const char *src);
+void GbkToUtf8(string &srcDst, const char *src);
 time_t StrTimeToUnixTime(string &timeStamp);
 
 class MsComHeader {

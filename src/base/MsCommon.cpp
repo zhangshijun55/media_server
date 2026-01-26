@@ -191,7 +191,7 @@ int64_t GetCurMs() {
 	return (int64_t)sec * 1000 + msec;
 }
 
-void GbkToUtf8(string &strSrc, const char *src_str) {
+void GbkToUtf8(string &strDst, const char *src_str) {
 	if (src_str == nullptr) {
 		return;
 	}
@@ -223,7 +223,7 @@ void GbkToUtf8(string &strSrc, const char *src_str) {
 	iconv_close(cd);
 	**pout = '\0';
 
-	strSrc = dd.get();
+	strDst = dd.get();
 }
 
 time_t StrTimeToUnixTime(string &timeStamp) {

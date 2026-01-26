@@ -10,27 +10,29 @@
 #include <thread>
 
 ///////////////////////////// MsJtServer /////////////////////////////
+static string ByteToString(const uint8_t *data, int len) {
+	string result;
+	// remove start 0x00s and trailing 0x00s
+	int start = 0;
+	while (start < len && data[start] == 0x00) {
+		start++;
+	}
+	int end = len - 1;
+	while (end >= start && data[end] == 0x00) {
+		end--;
+	}
+	for (int i = start; i <= end; i++) {
+		char buf[3];
+		sprintf(buf, "%02X", data[i]);
+		result += buf;
+	}
+	return result;
+}
 
 MsJtServer::MsJtServer(int type, int id) : MsReactor(type, id), m_serialNo(0) {}
 
 void MsJtServer::Run() {
 	this->RegistToManager();
-
-	// test data
-	shared_ptr<STerminalInfo> terminalInfo = make_shared<STerminalInfo>();
-	terminalInfo->m_terminalId = "13800138000";
-	terminalInfo->m_plate = "粤A12345";
-	terminalInfo->m_authenticated = true;
-	terminalInfo->m_avAttr = make_shared<SJtStreamInfo>();
-	terminalInfo->m_avAttr->m_videoCodec = 98; // H.264
-	terminalInfo->m_avAttr->m_audioCodec = 19; // AAC
-	terminalInfo->m_channelInfo = make_shared<SJtChannelInfo>();
-	terminalInfo->m_channelInfo->m_avChannelTotal = 1;
-	terminalInfo->m_channelInfo->m_audioChannelTotal = 0;
-	terminalInfo->m_channelInfo->m_videoChannelTotal = 0;
-	terminalInfo->m_channelInfo->m_channels.push_back({1, 1, 0, 0});
-
-	m_terminals.emplace(terminalInfo->m_terminalId, terminalInfo);
 
 	// Detach worker thread
 	thread(&MsJtServer::Wait, this).detach();
@@ -103,9 +105,6 @@ void MsJtServer::HandleMsg(MsMsg &msg) {
 }
 
 void MsJtServer::HandleJtMessage(shared_ptr<MsEvent> evt, JT808Message &msg) {
-	MS_LOG_INFO("JT received message: id=0x%04x from %s", msg.header.msgId,
-	            msg.header.terminalPhone.c_str());
-
 	// find map, update socket if different
 	shared_ptr<STerminalInfo> terminalInfo;
 	auto it = m_terminals.find(msg.header.terminalPhone);
@@ -174,7 +173,21 @@ void MsJtServer::OnTerminalRegister(shared_ptr<MsEvent> evt, JT808Message &msg,
 		return;
 	}
 
-	string plate = string(msg.body.begin() + 76, msg.body.end());
+	uint16_t provinceId = (msg.body[0] << 8) | msg.body[1];
+	uint16_t cityId = (msg.body[2] << 8) | msg.body[3];
+	string manufacturer = ByteToString(msg.body.data() + 4, 11);
+	string model = ByteToString(msg.body.data() + 15, 30);
+	string terminalId = ByteToString(msg.body.data() + 45, 30);
+	uint8_t plateColor = msg.body[75];
+	string oriPlate = string(msg.body.begin() + 76, msg.body.end());
+	string plate;
+	GbkToUtf8(plate, oriPlate.c_str());
+
+	MS_LOG_DEBUG("JT register data: province=%d, city=%d, manufacturer=%s, model=%s, "
+	             "terminalId=%s, plateColor=%d, plate=%s",
+	             provinceId, cityId, manufacturer.c_str(), model.c_str(), terminalId.c_str(),
+	             plateColor, plate.c_str());
+
 	string authCode = GenRandStr(16);
 
 	if (terminalInfo) {
@@ -186,14 +199,16 @@ void MsJtServer::OnTerminalRegister(shared_ptr<MsEvent> evt, JT808Message &msg,
 		terminalInfo->m_plate = plate;
 
 	} else {
-		MS_LOG_INFO("JT new terminal registered: %s", msg.header.terminalPhone.c_str());
+		MS_LOG_INFO("JT new terminal registered: %s auth code: %s",
+		            msg.header.terminalPhone.c_str(), authCode.c_str());
 		// Store terminal info
 		auto terminalInfo = make_shared<STerminalInfo>();
 		terminalInfo->m_sock = evt->GetSharedSocket();
 		terminalInfo->m_terminalId = msg.header.terminalPhone;
 		terminalInfo->m_authCode = authCode;
 		terminalInfo->m_plate = plate;
-		terminalInfo->m_lastHeartbeat = std::chrono::steady_clock::now();
+		terminalInfo->m_plateColor = plateColor;
+		terminalInfo->m_lastHeartbeat = time(nullptr);
 		m_terminals[msg.header.terminalPhone] = terminalInfo;
 	}
 
@@ -213,11 +228,19 @@ void MsJtServer::OnTerminalAuth(shared_ptr<MsEvent> evt, JT808Message &msg,
 	MS_LOG_INFO("JT terminal auth: phone=%s", msg.header.terminalPhone.c_str());
 
 	// Body contains auth code
-	string authCode(msg.body.begin(), msg.body.end());
-	MS_LOG_DEBUG("JT auth code: %s", authCode.c_str());
+	uint8_t authCodeLen = msg.body[0];
+	string authCode(msg.body.begin() + 1, msg.body.begin() + 1 + authCodeLen);
+	int offset = 1 + authCodeLen;
+
+	string imei = ByteToString(msg.body.data() + offset, 15);
+	offset += 15;
+	string softwareVersion = ByteToString(msg.body.data() + offset, msg.body.size() - offset);
+
+	MS_LOG_DEBUG("JT auth data: authCode=%s, imei=%s, softwareVersion=%s", authCode.c_str(),
+	             imei.c_str(), softwareVersion.c_str());
 
 	// Verify auth code (simple verification)
-	bool success = authCode == terminalInfo->m_authCode;
+	bool success = (authCode == terminalInfo->m_authCode);
 
 	// Send common response
 	SendCommonResponse(evt->GetSharedSocket(), msg.header.terminalPhone, msg.header.msgSerialNo,
@@ -225,7 +248,7 @@ void MsJtServer::OnTerminalAuth(shared_ptr<MsEvent> evt, JT808Message &msg,
 
 	if (success) {
 		terminalInfo->m_authenticated = true;
-		MS_LOG_INFO("JT terminal authenticated: %s", msg.header.terminalPhone.c_str());
+		MS_LOG_INFO("JT terminal authenticated success: %s", msg.header.terminalPhone.c_str());
 
 		this->CheckStreamInfo(terminalInfo);
 	}
@@ -233,9 +256,9 @@ void MsJtServer::OnTerminalAuth(shared_ptr<MsEvent> evt, JT808Message &msg,
 
 void MsJtServer::OnTerminalHeartbeat(shared_ptr<MsEvent> evt, JT808Message &msg,
                                      shared_ptr<STerminalInfo> &terminalInfo) {
-	MS_LOG_DEBUG("JT heartbeat from %s", msg.header.terminalPhone.c_str());
+	MS_LOG_DEBUG("JT heartbeat phone %s", msg.header.terminalPhone.c_str());
 
-	terminalInfo->m_lastHeartbeat = std::chrono::steady_clock::now();
+	terminalInfo->m_lastHeartbeat = time(nullptr);
 
 	// Send common response
 	SendCommonResponse(evt->GetSharedSocket(), msg.header.terminalPhone, msg.header.msgSerialNo,
@@ -758,18 +781,13 @@ void MsJtServer::HandleHttpMsg(shared_ptr<SHttpTransferMsg> rtcMsg) {
 
 			item["terminalId"] = info->m_terminalId;
 			item["plate"] = info->m_plate;
+			item["plateColor"] = info->m_plateColor;
 			item["auth"] = info->m_authenticated;
 
-			if (info->m_lastHeartbeat.time_since_epoch().count() > 0) {
-				auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
-				    info->m_lastHeartbeat.time_since_epoch());
-				std::time_t t = ms.count() / 1000;
-				char buf[32];
-				std::strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S", std::localtime(&t));
-				item["lastHeartbeat"] = buf;
-			} else {
-				item["lastHeartbeat"] = nullptr;
-			}
+			// time_t to string
+			char buf[32];
+			strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S", localtime(&info->m_lastHeartbeat));
+			item["lastHeartbeat"] = buf;
 
 			// av attributes
 			if (info->m_avAttr) {

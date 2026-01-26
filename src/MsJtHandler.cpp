@@ -164,14 +164,14 @@ bool MsJtHandler::ParseHeader(const vector<uint8_t> &data, JT808Header &header, 
 
 	// Message body attributes (2 bytes)
 	header.msgBodyAttr = (data[2] << 8) | data[3];
+	header.protocolVersion = data[4];
 
 	// Terminal phone number (BCD, 10 bytes)
 	char phone[21] = {0};
 	for (int i = 0; i < 10; i++) {
-		sprintf(phone + i * 2, "%02X", data[4 + i]);
+		sprintf(phone + i * 2, "%02X", data[5 + i]);
 	}
 	header.terminalPhone = phone;
-	header.protocolVersion = data[14];
 
 	// Message serial number (2 bytes)
 	header.msgSerialNo = (data[15] << 8) | data[16];

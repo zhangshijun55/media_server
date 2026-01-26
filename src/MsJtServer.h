@@ -101,7 +101,8 @@ private:
 		string m_terminalId;
 		string m_authCode;
 		string m_plate;
-		std::chrono::steady_clock::time_point m_lastHeartbeat;
+		uint8_t m_plateColor = 0;
+		int64_t m_lastHeartbeat;
 
 		shared_ptr<SJtStreamInfo> m_avAttr;
 		shared_ptr<SJtChannelInfo> m_channelInfo;
